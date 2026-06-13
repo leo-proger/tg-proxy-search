@@ -2,11 +2,12 @@
 Интерактивный поиск MTProto-прокси.
 
 Выберите режим:
-  1. Найти N рабочих прокси (парсится партиями по 50 постов).
+  1. Найти N рабочих прокси.
   2. Взять все прокси за последние X часов.
-  3. Оба условия — до N рабочих за последние X часов.
+  3. Перепроверить рабочие из кэша (без VPN).
 
-Этапы: включить VPN → парсится канал → выключить VPN → проверяются прокси.
+Этапы 1-2: включить VPN → парсится канал → выключить VPN → проверяются прокси.
+Режим 3:   VPN не нужен — берёт ранее найденные рабочие и проверяет заново.
 """
 from __future__ import annotations
 
@@ -20,8 +21,6 @@ from dotenv import load_dotenv
 import tg_proxy_search as api
 
 load_dotenv()
-
-BATCH_SIZE = 50  # постов за одну итерацию в режиме пагинации
 
 
 class C:
@@ -39,8 +38,8 @@ class C:
 @dataclass
 class RunSettings:
     mode: int
-    target_working: int | None  # N (режимы 1, 3)
-    since_hours: float | None   # X (режимы 2, 3)
+    target_working: int | None  # N (режим 1)
+    since_hours: float | None   # X (режим 2)
 
 
 def _ask_int(prompt: str, minimum: int = 1) -> int:
@@ -71,7 +70,7 @@ def prompt_settings() -> RunSettings:
     print(f"{C.BOLD}Выберите режим:{C.RST}")
     print(f"  {C.BOLD}1{C.RST}  Найти N рабочих прокси")
     print(f"  {C.BOLD}2{C.RST}  Взять все прокси за последние X часов")
-    print(f"  {C.BOLD}3{C.RST}  Оба условия — до N рабочих за последние X часов\n")
+    print(f"  {C.BOLD}3{C.RST}  Перепроверить рабочие из кэша {C.DIM}(VPN не нужен){C.RST}\n")
 
     while True:
         choice = input("Режим [1/2/3]: ").strip()
@@ -82,9 +81,9 @@ def prompt_settings() -> RunSettings:
 
     target_working: int | None = None
     since_hours: float | None = None
-    if mode in (1, 3):
+    if mode == 1:
         target_working = _ask_int("Сколько рабочих прокси найти? ")
-    if mode in (2, 3):
+    if mode == 2:
         since_hours = _ask_float("За сколько последних часов брать посты? ")
 
     print()
@@ -114,44 +113,23 @@ async def _auto_add_proxies(proxies: list[api.Proxy]) -> None:
 
 # ── Фазы ─────────────────────────────────────────────────────────────────────
 
-def _prompt_vpn_on(found: int = 0, target: int | None = None) -> None:
-    print("─" * 55)
-    if found > 0 and target is not None:
-        print(f"{C.WARN}  Найдено {found}/{target}. Включите VPN и нажмите Enter для следующей партии...{C.RST}")
+async def _run_fetch(config: api.Config, settings: RunSettings) -> api.FetchResult:
+    print(f"{C.BOLD}── Шаг 1: парсится канал{C.RST}")
+    print(f"{C.WARN}  VPN должен быть ВКЛЮЧЁН (Telegram должен быть доступен){C.RST}")
+    input(f"{C.DIM}  Включите VPN и нажмите Enter...{C.RST} ")
+    print()
+
+    if settings.since_hours is not None:
+        print(f"{C.DIM}  Парсится @{config.channel}, посты за последние {settings.since_hours:g}ч{C.RST}\n")
     else:
-        print(f"{C.WARN}  Включите VPN и нажмите Enter...{C.RST}")
-    input()
-    print()
-
-
-def _prompt_vpn_off() -> None:
-    print("─" * 55)
-    print(f"{C.WARN}  Выключите VPN и нажмите Enter для проверки...{C.RST}")
-    input()
-    print()
-
-
-async def _fetch_batch(
-    config: api.Config,
-    settings: RunSettings,
-    offset_id: int = 0,
-    batch_size: int | None = None,
-) -> api.FetchResult:
-    label = f"за последние {settings.since_hours:g}ч" if settings.since_hours else f"канал @{config.channel}"
-    print(f"{C.BOLD}── Парсится{C.RST} {C.DIM}{label}{C.RST}")
+        print(f"{C.DIM}  Парсится @{config.channel}{C.RST}\n")
 
     def on_progress(event: api.FetchProgress) -> None:
         print(f"\r  Гуглится: {event.scanned} постов  |  найдено: {event.found}", end="", flush=True)
 
-    result = await api.fetch(
-        config,
-        since_hours=settings.since_hours,
-        on_progress=on_progress,
-        offset_id=offset_id,
-        batch_size=batch_size,
-    )
+    result = await api.fetch(config, since_hours=settings.since_hours, on_progress=on_progress)
 
-    print(f"\r  {C.OK}Кандидатов: {result.found}{C.RST}  {C.DIM}(просмотрено {result.scanned} постов){C.RST}")
+    print(f"\r  {C.OK}Кандидатов найдено: {result.found}{C.RST}  {C.DIM}(просмотрено {result.scanned} постов){C.RST}")
     if result.limit_reached:
         print(f"{C.WARN}  ⚠ Лимит сканирования достигнут ({config.max_scan_messages} постов) — "
               f"увеличьте MAX_SCAN_MESSAGES в .env.{C.RST}")
@@ -162,14 +140,29 @@ async def _fetch_batch(
     return result
 
 
-async def _check_batch(
-    config: api.Config,
-    candidates: list[api.Proxy],
-    target_working: int | None,
-) -> api.CheckResult:
-    target_label = str(target_working) if target_working is not None else "все"
-    print(f"{C.BOLD}── Проверяется{C.RST}  {C.DIM}цель: {target_label}  |  таймаут: {config.tcp_timeout:g}с{C.RST}\n")
+async def _run_check(config: api.Config, settings: RunSettings) -> api.CheckResult:
+    print(f"{C.BOLD}── Шаг 2: проверяется{C.RST}")
+    print(f"{C.WARN}  VPN должен быть ВЫКЛЮЧЁН (подключение идёт с вашего реального IP){C.RST}")
+    target = settings.target_working
+    target_label = str(target) if target is not None else "все"
+    print(f"{C.DIM}  Цель: {target_label}  |  таймаут: {config.tcp_timeout:g}с{C.RST}\n")
 
+    return await _do_check(config, target_working=target)
+
+
+async def _run_recheck(config: api.Config) -> api.CheckResult:
+    print(f"{C.BOLD}── Перепроверяется кэш{C.RST}")
+    print(f"{C.DIM}  VPN не нужен — проверка идёт с реального IP{C.RST}\n")
+
+    return await _do_recheck(config)
+
+
+async def _do_check(
+    config: api.Config,
+    *,
+    target_working: int | None = None,
+    candidates: list[api.Proxy] | None = None,
+) -> api.CheckResult:
     consecutive_fails = 0
     has_collapsed_line = False
 
@@ -201,53 +194,59 @@ async def _check_batch(
     return result
 
 
+async def _do_recheck(config: api.Config) -> api.CheckResult:
+    consecutive_fails = 0
+    has_collapsed_line = False
+
+    def on_event(event: api.ProxyChecked) -> None:
+        nonlocal consecutive_fails, has_collapsed_line
+        if event.ok:
+            if has_collapsed_line:
+                print()
+                has_collapsed_line = False
+            consecutive_fails = 0
+            print(f"{C.OK}  ✓{C.RST} {event.proxy.server}:{event.proxy.port}")
+        else:
+            consecutive_fails += 1
+            if consecutive_fails <= 2:
+                print(f"{C.FAIL}  ✗{C.RST} {event.proxy.server}:{event.proxy.port}")
+            else:
+                print(
+                    f"\r{C.DIM}  ...{event.checked}/{event.total} проверено, нерабочие{C.RST}   ",
+                    end="", flush=True,
+                )
+                has_collapsed_line = True
+
+    result = await api.recheck(config, on_event=on_event)
+
+    if has_collapsed_line:
+        print()
+    if result.total == 0:
+        print(f"{C.WARN}  Кэш пустой — сначала запустите режим 1 или 2.{C.RST}\n")
+    else:
+        print(f"\n  {C.OK}Рабочих: {len(result.working)}{C.RST}  {C.DIM}(проверено {result.checked}/{result.total}){C.RST}\n")
+    return result
+
+
 # ── Оркестрация ───────────────────────────────────────────────────────────────
-
-async def _run_paginated(config: api.Config, settings: RunSettings) -> list[api.Proxy]:
-    """Режим 1: парсим партиями по BATCH_SIZE постов, проверяем каждую, пока не наберём N рабочих."""
-    target = settings.target_working
-    assert target is not None
-    working: list[api.Proxy] = []
-    offset_id = 0
-    batch = 0
-
-    while len(working) < target:
-        batch += 1
-        _prompt_vpn_on(found=len(working), target=target if batch > 1 else None)
-
-        fetch_result = await _fetch_batch(config, settings, offset_id=offset_id, batch_size=BATCH_SIZE)
-
-        if fetch_result.found == 0:
-            print(f"{C.WARN}  Посты в канале закончились.{C.RST}\n")
-            break
-
-        offset_id = fetch_result.last_message_id or 0
-
-        _prompt_vpn_off()
-
-        need = target - len(working)
-        check_result = await _check_batch(config, fetch_result.candidates, target_working=need)
-        working.extend(check_result.working)
-
-        if fetch_result.last_message_id is None:
-            break
-
-    return working
-
 
 async def run(settings: RunSettings) -> None:
     config = api.Config.from_env()
 
-    if settings.mode == 1:
-        working = await _run_paginated(config, settings)
+    if settings.mode == 3:
+        check_result = await _run_recheck(config)
+        working = check_result.working
     else:
-        _prompt_vpn_on()
-        fetch_result = await _fetch_batch(config, settings)
+        fetch_result = await _run_fetch(config, settings)
         if fetch_result.found == 0:
             return
 
-        _prompt_vpn_off()
-        check_result = await _check_batch(config, fetch_result.candidates, settings.target_working)
+        print("─" * 55)
+        print(f"{C.WARN}Выключите VPN и нажмите Enter для начала проверки...{C.RST}")
+        await asyncio.get_running_loop().run_in_executor(None, input)
+        print()
+
+        check_result = await _run_check(config, settings)
         working = check_result.working
 
         if settings.target_working is not None and len(working) < settings.target_working:
@@ -255,7 +254,8 @@ async def run(settings: RunSettings) -> None:
                   f"кандидаты закончились.{C.RST}\n")
 
     if not working:
-        print(f"{C.WARN}  Рабочих прокси не найдено. Попробуйте расширить диапазон или увеличить N.{C.RST}")
+        if settings.mode != 3:
+            print(f"{C.WARN}  Рабочих прокси не найдено. Попробуйте расширить диапазон или увеличить N.{C.RST}")
         return
 
     print(f"{C.BOLD}── Результат{C.RST}  {C.DIM}(кликните ссылку чтобы добавить прокси в Telegram Desktop){C.RST}\n")

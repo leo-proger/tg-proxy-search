@@ -59,9 +59,6 @@ class FetchResult:
     # True if the scan stopped at the safety cap rather than naturally ending.
     limit_reached: bool = False
     since_hours: float | None = None
-    # ID of the oldest message seen — pass as offset_id to fetch() to continue
-    # from where this batch left off (exclusive, i.e. next batch starts older).
-    last_message_id: int | None = None
 
     @property
     def found(self) -> int:
@@ -88,20 +85,16 @@ async def fetch(
     since_hours: float | None = None,
     session_file: str = "telethon",
     on_progress: OnFetchProgress | None = None,
-    offset_id: int = 0,
-    batch_size: int | None = None,
 ) -> FetchResult:
     """
     Step 1 (VPN on): read the proxy channel newest → oldest and save candidates.
 
-    - since_hours=None : scan until batch_size / max_scan_messages limit.
-    - since_hours=X    : scan until a post older than X hours is reached.
-    - offset_id        : start from messages older than this ID (for pagination).
-    - batch_size       : how many messages to scan; defaults to max_scan_messages.
+    - since_hours=None : scan up to config.max_scan_messages messages.
+    - since_hours=X    : scan until a post older than X hours is reached
+                         (still bounded by config.max_scan_messages).
 
     Raises RuntimeError if the session is not authorized.
     """
-    limit = batch_size if batch_size is not None else config.max_scan_messages
     cutoff = (
         datetime.now(timezone.utc) - timedelta(hours=since_hours)
         if since_hours is not None else None
@@ -115,14 +108,12 @@ async def fetch(
         seen: set[tuple[str, int, str]] = set()
         scanned = 0
         reached_cutoff = False
-        last_message_id: int | None = None
 
         # iter_messages yields newest → oldest (reverse=False).
         async for message in client.iter_messages(
-            config.channel, limit=limit, reverse=False, offset_id=offset_id,
+            config.channel, limit=config.max_scan_messages, reverse=False
         ):
             scanned += 1
-            last_message_id = message.id
             mdate: datetime | None = getattr(message, "date", None)
             if cutoff is not None and mdate is not None and mdate < cutoff:
                 reached_cutoff = True
@@ -142,13 +133,12 @@ async def fetch(
     with open(config.cache_file, "w") as f:
         json.dump([asdict(p) for p in candidates], f, indent=2)
 
-    limit_reached = scanned >= limit and not reached_cutoff
+    limit_reached = scanned >= config.max_scan_messages and not reached_cutoff
     return FetchResult(
         candidates=candidates,
         scanned=scanned,
         limit_reached=limit_reached,
         since_hours=since_hours,
-        last_message_id=last_message_id,
     )
 
 
@@ -262,9 +252,47 @@ async def check(
         cache.save()
 
     result_working = working[:target_working] if target_working is not None else working
+
     return CheckResult(
         working=result_working,
         target=target_working,
         total=total,
         checked=checked,
     )
+
+
+async def recheck(
+    config: Config,
+    *,
+    on_event: OnCheckEvent | None = None,
+) -> CheckResult:
+    """
+    Re-verify all proxies that are currently stored as working in the cache,
+    regardless of TTL. Does not require a fetch phase (no VPN needed).
+
+    Useful when previously working proxies go down and you want a quick refresh
+    without scanning the channel again.
+    """
+    cache = ProxyCache(
+        config.check_cache_file,
+        config.proxy_working_recheck_hours,
+        config.proxy_failed_recheck_hours,
+    )
+    cache.load()
+
+    candidates = [
+        Proxy(server=e.server, port=e.port, secret=e.secret)
+        for e in cache._entries.values()
+        if e.ok
+    ]
+
+    if not candidates:
+        return CheckResult()
+
+    # Force-expire all of them so check() actually re-tests instead of
+    # returning stale cache hits.
+    for proxy in candidates:
+        cache.delete(proxy)
+    cache.save()
+
+    return await check(config, candidates=candidates, on_event=on_event)

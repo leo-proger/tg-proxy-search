@@ -8,6 +8,7 @@ from .core import (
     ProxyChecked,
     check,
     fetch,
+    recheck,
 )
 from .models import Proxy
 
@@ -22,4 +23,5 @@ __all__ = [
     "CheckResult",
     "OnFetchProgress",
     "OnCheckEvent",
+    "recheck",
 ]
