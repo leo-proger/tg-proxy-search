@@ -260,7 +260,7 @@ async def run(settings: RunSettings) -> None:
 
     print(f"{C.BOLD}── Результат{C.RST}  {C.DIM}(ссылки вставлять в браузер){C.RST}\n")
     for proxy in working:
-        print(f"  {proxy.tg_link()}\n")
+        print(f"   {proxy.tg_link()}")
 
     if config.auto_add_to_telegram:
         await _auto_add_proxies(working)

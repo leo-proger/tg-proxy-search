@@ -42,8 +42,8 @@ cp .env.example .env
 uv run python -c "
 from telethon.sync import TelegramClient
 from dotenv import load_dotenv; import os; load_dotenv()
-api_id = int(os.environ.get('API_ID', 2040))
-api_hash = os.environ.get('API_HASH', 'b18441a1ff607e10a989891a5462e627')
+api_id = int(os.environ.get('API_ID'))
+api_hash = os.environ.get('API_HASH')
 with TelegramClient('telethon', api_id, api_hash) as c:
     c.start(); print('Готово')
 "
