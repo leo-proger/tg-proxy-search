@@ -1,0 +1,9 @@
+[project]
+name = "tg-proxy-search"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "telethon>=1.36",
+    "python-dotenv>=1.0",
+    "python-socks>=2.8.1",
+]
