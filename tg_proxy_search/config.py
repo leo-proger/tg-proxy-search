@@ -27,9 +27,13 @@ class Config:
 
     @staticmethod
     def from_env() -> Config:
+        # Telegram Desktop public credentials — work out of the box but have
+        # stricter rate limits than personal API keys from my.telegram.org.
+        _DEFAULT_API_ID   = 2040
+        _DEFAULT_API_HASH = "b18441a1ff607e10a989891a5462e627"
         return Config(
-            api_id=int(os.environ["API_ID"]),
-            api_hash=os.environ["API_HASH"],
+            api_id=int(os.environ.get("API_ID", _DEFAULT_API_ID)),
+            api_hash=os.environ.get("API_HASH", _DEFAULT_API_HASH),
             tcp_timeout=float(os.environ.get("TCP_TIMEOUT", "15")),
             proxy_check_concurrency=int(os.environ.get("PROXY_CHECK_CONCURRENCY", "8")),
             max_scan_messages=int(os.environ.get("MAX_SCAN_MESSAGES", "1000")),
