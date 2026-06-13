@@ -34,7 +34,10 @@ async def check_proxy(proxy: Proxy, api_id: int, api_hash: str, timeout: float) 
     at lower concurrency, because a working-but-slow proxy can time out when
     many handshakes compete for bandwidth at once.
     """
-    parsed = parse_secret(proxy.secret)
+    try:
+        parsed = parse_secret(proxy.secret)
+    except Exception:
+        return False
     if parsed.kind == FAKETLS:
         sni = parsed.domain or proxy.server
         return await faketls_check(proxy.server, proxy.port, parsed.key, sni, timeout)
@@ -49,13 +52,16 @@ async def mtproto_check(
     handshake. Single TCP connection — no separate pre-check — so high-latency
     proxies aren't penalised by a redundant connect.
     """
-    client = TelegramClient(
-        StringSession(),
-        api_id,
-        api_hash,
-        connection=ConnectionTcpMTProxyRandomizedIntermediate,
-        proxy=(server, port, secret),
-    )
+    try:
+        client = TelegramClient(
+            StringSession(),
+            api_id,
+            api_hash,
+            connection=ConnectionTcpMTProxyRandomizedIntermediate,
+            proxy=(server, port, secret),
+        )
+    except Exception:
+        return False
     try:
         await asyncio.wait_for(client.connect(), timeout=timeout)
         return client.is_connected()
@@ -188,5 +194,6 @@ async def faketls_check(server: str, port: int, key: bytes, sni: str, timeout: f
     finally:
         try:
             writer.close()
+            await writer.wait_closed()
         except Exception:
             pass

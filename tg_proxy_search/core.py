@@ -280,19 +280,14 @@ async def recheck(
     )
     cache.load()
 
-    candidates = [
-        Proxy(server=e.server, port=e.port, secret=e.secret)
-        for e in cache._entries.values()
-        if e.ok
-    ]
+    candidates = cache.working_proxies()
 
     if not candidates:
         return CheckResult()
 
     # Force-expire all of them so check() actually re-tests instead of
     # returning stale cache hits.
-    for proxy in candidates:
-        cache.delete(proxy)
+    cache.clear_working()
     cache.save()
 
     return await check(config, candidates=candidates, on_event=on_event)

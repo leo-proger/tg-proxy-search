@@ -117,6 +117,20 @@ class ProxyCache:
         else:
             self.delete(proxy)             # failing recheck of a failing proxy → dead
 
+    def working_proxies(self) -> list[Proxy]:
+        """All proxies currently stored as working (any TTL)."""
+        return [
+            Proxy(server=e.server, port=e.port, secret=e.secret)
+            for e in self._entries.values()
+            if e.ok
+        ]
+
+    def clear_working(self) -> None:
+        """Remove all working entries (used before a full recheck)."""
+        dead = [k for k, e in self._entries.items() if e.ok]
+        for k in dead:
+            del self._entries[k]
+
     @property
     def stats(self) -> tuple[int, int]:
         """Returns (working_count, failed_count) of current entries."""
