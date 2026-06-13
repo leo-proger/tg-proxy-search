@@ -1,12 +1,12 @@
 """
-Interactive proxy finder.
+Интерактивный поиск MTProto-прокси.
 
-On start you pick a mode:
-  1. Find until N working proxies are collected.
-  2. Take all proxies posted in the last X hours.
-  3. Both — up to N working proxies, looking only at the last X hours.
+Выберите режим:
+  1. Найти N рабочих прокси.
+  2. Взять все прокси за последние X часов.
+  3. Оба условия — до N рабочих за последние X часов.
 
-Then: fetch with VPN ON → switch VPN OFF → verify from your real IP.
+Этапы: включить ВПН → собрать прокси → выключить ВПН → проверить.
 """
 from __future__ import annotations
 
@@ -32,13 +32,13 @@ class C:
     RST  = "\033[0m"
 
 
-# ── Mode selection ────────────────────────────────────────────────────────────
+# ── Выбор режима ──────────────────────────────────────────────────────────────
 
 @dataclass
 class RunSettings:
     mode: int
-    target_working: int | None  # N (modes 1, 3)
-    since_hours: float | None   # X (modes 2, 3)
+    target_working: int | None  # N (режимы 1, 3)
+    since_hours: float | None   # X (режимы 2, 3)
 
 
 def _ask_int(prompt: str, minimum: int = 1) -> int:
@@ -50,7 +50,7 @@ def _ask_int(prompt: str, minimum: int = 1) -> int:
                 return value
         except ValueError:
             pass
-        print(f"{C.FAIL}  Enter an integer ≥ {minimum}.{C.RST}")
+        print(f"{C.FAIL}  Введите целое число ≥ {minimum}.{C.RST}")
 
 
 def _ask_float(prompt: str, minimum: float = 0.0) -> float:
@@ -62,28 +62,28 @@ def _ask_float(prompt: str, minimum: float = 0.0) -> float:
                 return value
         except ValueError:
             pass
-        print(f"{C.FAIL}  Enter a number > {minimum}.{C.RST}")
+        print(f"{C.FAIL}  Введите число > {minimum}.{C.RST}")
 
 
 def prompt_settings() -> RunSettings:
-    print(f"{C.BOLD}Select mode:{C.RST}")
-    print(f"  {C.BOLD}1{C.RST}  Find until N working proxies are collected")
-    print(f"  {C.BOLD}2{C.RST}  Take all proxies from the last X hours")
-    print(f"  {C.BOLD}3{C.RST}  Both — up to N working, within the last X hours\n")
+    print(f"{C.BOLD}Выберите режим:{C.RST}")
+    print(f"  {C.BOLD}1{C.RST}  Найти N рабочих прокси")
+    print(f"  {C.BOLD}2{C.RST}  Взять все прокси за последние X часов")
+    print(f"  {C.BOLD}3{C.RST}  Оба условия — до N рабочих за последние X часов\n")
 
     while True:
-        choice = input("Mode [1/2/3]: ").strip()
+        choice = input("Режим [1/2/3]: ").strip()
         if choice in ("1", "2", "3"):
             mode = int(choice)
             break
-        print(f"{C.FAIL}  Type 1, 2 or 3.{C.RST}")
+        print(f"{C.FAIL}  Введите 1, 2 или 3.{C.RST}")
 
     target_working: int | None = None
     since_hours: float | None = None
     if mode in (1, 3):
-        target_working = _ask_int("How many working proxies to find? ")
+        target_working = _ask_int("Сколько рабочих прокси найти? ")
     if mode in (2, 3):
-        since_hours = _ask_float("Look at posts from the last how many hours? ")
+        since_hours = _ask_float("За сколько последних часов брать посты? ")
 
     print()
     return RunSettings(mode=mode, target_working=target_working, since_hours=since_hours)
@@ -102,53 +102,56 @@ def _open_url(url: str) -> None:
 
 async def _auto_add_proxies(proxies: list[api.Proxy]) -> None:
     loop = asyncio.get_running_loop()
-    print(f"\n{C.BOLD}── Adding proxies to Telegram{C.RST}\n")
+    print(f"\n{C.BOLD}── Добавление прокси в Telegram{C.RST}\n")
     for i, proxy in enumerate(proxies, 1):
         print(f"  [{i}/{len(proxies)}] {proxy.server}:{proxy.port}")
         await loop.run_in_executor(None, _open_url, proxy.tg_link())
-        await loop.run_in_executor(None, input, "  Click 'Connect' in Telegram, then press Enter...")
+        await loop.run_in_executor(None, input, "  Нажмите «Подключиться» в Telegram, затем Enter...")
         print()
 
 
-# ── Phases ────────────────────────────────────────────────────────────────────
+# ── Фазы ─────────────────────────────────────────────────────────────────────
 
 async def _run_fetch(config: api.Config, settings: RunSettings) -> api.FetchResult:
-    print(f"{C.BOLD}── Step 1: collecting candidates{C.RST}")
-    print(f"{C.WARN}  VPN must be ON (Telegram must be accessible){C.RST}")
+    print(f"{C.BOLD}── Шаг 1: сбор кандидатов{C.RST}")
+    print(f"{C.WARN}  ВПН должен быть ВКЛЮЧЁН (Telegram должен быть доступен){C.RST}")
+    input(f"{C.DIM}  Включите ВПН и нажмите Enter...{C.RST} ")
+    print()
+
     if settings.since_hours is not None:
-        print(f"{C.DIM}  Reading @{config.channel}, posts from the last {settings.since_hours:g}h{C.RST}\n")
+        print(f"{C.DIM}  Читаем @{config.channel}, посты за последние {settings.since_hours:g}ч{C.RST}\n")
     else:
-        print(f"{C.DIM}  Reading @{config.channel}{C.RST}\n")
+        print(f"{C.DIM}  Читаем @{config.channel}{C.RST}\n")
 
     def on_progress(event: api.FetchProgress) -> None:
-        print(f"\r  Scanned: {event.scanned}  |  found: {event.found}", end="", flush=True)
+        print(f"\r  Просмотрено: {event.scanned}  |  найдено: {event.found}", end="", flush=True)
 
     result = await api.fetch(config, since_hours=settings.since_hours, on_progress=on_progress)
 
-    print(f"\r  {C.OK}Candidates found: {result.found}{C.RST}  {C.DIM}(scanned {result.scanned} posts){C.RST}")
+    print(f"\r  {C.OK}Кандидатов найдено: {result.found}{C.RST}  {C.DIM}(просмотрено {result.scanned} постов){C.RST}")
     if result.limit_reached:
-        print(f"{C.WARN}  ⚠ Scan limit reached ({config.max_scan_messages} posts) — "
-              f"raise MAX_SCAN_MESSAGES in .env to look further back.{C.RST}")
+        print(f"{C.WARN}  ⚠ Достигнут лимит сканирования ({config.max_scan_messages} постов) — "
+              f"увеличьте MAX_SCAN_MESSAGES в .env чтобы смотреть глубже.{C.RST}")
     if result.found == 0:
-        window = f" in the last {settings.since_hours:g}h" if settings.since_hours else ""
-        print(f"{C.WARN}  ⚠ No proxy candidates{window}.{C.RST}")
+        window = f" за последние {settings.since_hours:g}ч" if settings.since_hours else ""
+        print(f"{C.WARN}  ⚠ Прокси-кандидаты не найдены{window}.{C.RST}")
     print()
     return result
 
 
 async def _run_check(config: api.Config, settings: RunSettings) -> api.CheckResult:
-    print(f"{C.BOLD}── Step 2: verifying proxies{C.RST}")
-    print(f"{C.WARN}  VPN must be OFF (connections go from your real IP){C.RST}")
+    print(f"{C.BOLD}── Шаг 2: проверка прокси{C.RST}")
+    print(f"{C.WARN}  ВПН должен быть ВЫКЛЮЧЕН (подключение идёт с вашего реального IP){C.RST}")
     target = settings.target_working
-    target_label = str(target) if target is not None else "all"
-    print(f"{C.DIM}  Target working: {target_label}  |  timeout: {config.tcp_timeout:g}s{C.RST}\n")
+    target_label = str(target) if target is not None else "все"
+    print(f"{C.DIM}  Цель: {target_label}  |  таймаут: {config.tcp_timeout:g}с{C.RST}\n")
 
     consecutive_fails = 0
     has_collapsed_line = False
 
     def on_event(event: api.ProxyChecked) -> None:
         nonlocal consecutive_fails, has_collapsed_line
-        cached_tag = f" {C.DIM}(cached){C.RST}" if event.from_cache else ""
+        cached_tag = f" {C.DIM}(кэш){C.RST}" if event.from_cache else ""
         if event.ok:
             if has_collapsed_line:
                 print()
@@ -161,7 +164,7 @@ async def _run_check(config: api.Config, settings: RunSettings) -> api.CheckResu
                 print(f"{C.FAIL}  ✗{C.RST} {event.proxy.server}:{event.proxy.port}{cached_tag}")
             else:
                 print(
-                    f"\r{C.DIM}  ...{event.checked}/{event.total} tested, all failed{C.RST}   ",
+                    f"\r{C.DIM}  ...{event.checked}/{event.total} проверено, все нерабочие{C.RST}   ",
                     end="", flush=True,
                 )
                 has_collapsed_line = True
@@ -170,16 +173,16 @@ async def _run_check(config: api.Config, settings: RunSettings) -> api.CheckResu
 
     if has_collapsed_line:
         print()
-    print(f"\n  {C.OK}Working: {len(result.working)}{C.RST}  {C.DIM}(checked {result.checked}/{result.total}){C.RST}")
+    print(f"\n  {C.OK}Рабочих: {len(result.working)}{C.RST}  {C.DIM}(проверено {result.checked}/{result.total}){C.RST}")
 
     if target is not None and not result.target_met:
-        print(f"{C.WARN}  ⚠ Found only {len(result.working)} of {target} requested — "
-              f"candidates exhausted.{C.RST}")
+        print(f"{C.WARN}  ⚠ Найдено только {len(result.working)} из {target} запрошенных — "
+              f"кандидаты закончились.{C.RST}")
     print()
     return result
 
 
-# ── Orchestration ─────────────────────────────────────────────────────────────
+# ── Оркестрация ───────────────────────────────────────────────────────────────
 
 async def run(settings: RunSettings) -> None:
     config = api.Config.from_env()
@@ -189,16 +192,16 @@ async def run(settings: RunSettings) -> None:
         return
 
     print("─" * 55)
-    print(f"{C.WARN}Turn OFF VPN, then press Enter to start verification...{C.RST}")
+    print(f"{C.WARN}Выключите ВПН и нажмите Enter для начала проверки...{C.RST}")
     await asyncio.get_running_loop().run_in_executor(None, input)
     print()
 
     check_result = await _run_check(config, settings)
     if not check_result.working:
-        print(f"{C.WARN}  No working proxies found. Try a wider time window or a larger N.{C.RST}")
+        print(f"{C.WARN}  Рабочих прокси не найдено. Попробуйте расширить временной диапазон или увеличить N.{C.RST}")
         return
 
-    print(f"{C.BOLD}── Result{C.RST}  {C.DIM}(click a link to add the proxy in Telegram Desktop){C.RST}\n")
+    print(f"{C.BOLD}── Результат{C.RST}  {C.DIM}(кликните ссылку чтобы добавить прокси в Telegram Desktop){C.RST}\n")
     for proxy in check_result.working:
         print(f"  {proxy.tg_link()}\n")
 
