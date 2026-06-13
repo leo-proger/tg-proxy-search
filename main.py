@@ -258,7 +258,7 @@ async def run(settings: RunSettings) -> None:
             print(f"{C.WARN}  Рабочих прокси не найдено. Попробуйте расширить диапазон или увеличить N.{C.RST}")
         return
 
-    print(f"{C.BOLD}── Результат{C.RST}  {C.DIM}(кликните ссылку чтобы добавить прокси в Telegram Desktop){C.RST}\n")
+    print(f"{C.BOLD}── Результат{C.RST}  {C.DIM}(ссылки вставлять в браузер){C.RST}\n")
     for proxy in working:
         print(f"  {proxy.tg_link()}\n")
 
@@ -268,4 +268,13 @@ async def run(settings: RunSettings) -> None:
 
 if __name__ == "__main__":
     settings = prompt_settings()
-    asyncio.run(run(settings))
+    try:
+        asyncio.run(run(settings))
+    except KeyboardInterrupt:
+        print(f"\n{C.WARN}  Прервано.{C.RST}")
+    except RuntimeError as e:
+        print(f"\n{C.FAIL}  Ошибка: {e}{C.RST}")
+        if "Session not authorized" in str(e):
+            print(f"{C.DIM}  Запустите авторизацию из README и повторите.{C.RST}")
+    except Exception as e:
+        print(f"\n{C.FAIL}  Неожиданная ошибка: {e}{C.RST}")

@@ -179,7 +179,7 @@ async def check(
     )
     cache.load()
 
-    asyncio.get_running_loop().set_exception_handler(lambda _l, _c: None)
+    asyncio.get_running_loop().set_exception_handler(lambda _l, _c: None)  # suppress Telethon noise
 
     working: list[Proxy] = []
     checked = 0
