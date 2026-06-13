@@ -8,8 +8,8 @@ class Proxy:
     server: str
     port: int
     secret: str
-    # Excluded from equality and hash — two proxies with same credentials
-    # but different post dates are still the same proxy.
+    # Исключено из сравнения и хэша: два прокси с одинаковыми данными,
+    # но разными датами поста считаются одним прокси.
     posted_at: str | None = field(default=None, compare=False)
 
     def tg_link(self) -> str:

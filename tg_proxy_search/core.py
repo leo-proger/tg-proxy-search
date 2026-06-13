@@ -14,8 +14,8 @@ from .config import Config
 from .models import Proxy
 from .parser import extract_from_message
 
-# Sorts oldest first; proxies without a parseable date sink to the bottom
-# (used with reverse=True so the newest posts end up on top).
+# Сортирует по возрастанию даты; прокси без даты уходят в конец
+# (используется с reverse=True, чтобы новые посты оказались вверху).
 _EPOCH = datetime.min.replace(tzinfo=timezone.utc)
 
 
@@ -56,7 +56,7 @@ OnCheckEvent = Callable[[ProxyChecked], None]
 class FetchResult:
     candidates: list[Proxy] = field(default_factory=list)
     scanned: int = 0
-    # True if the scan stopped at the safety cap rather than naturally ending.
+    # True, если сканирование остановилось из-за лимита, а не дошло до конца.
     limit_reached: bool = False
     since_hours: float | None = None
 
@@ -87,13 +87,13 @@ async def fetch(
     on_progress: OnFetchProgress | None = None,
 ) -> FetchResult:
     """
-    Step 1 (VPN on): read the proxy channel newest → oldest and save candidates.
+    Шаг 1 (VPN включён): парсит канал с прокси от новых к старым, сохраняет кандидатов.
 
-    - since_hours=None : scan up to config.max_scan_messages messages.
-    - since_hours=X    : scan until a post older than X hours is reached
-                         (still bounded by config.max_scan_messages).
+    - since_hours=None : сканирует до config.max_scan_messages сообщений.
+    - since_hours=X    : сканирует до поста старше X часов
+                         (также ограничено config.max_scan_messages).
 
-    Raises RuntimeError if the session is not authorized.
+    Бросает RuntimeError, если сессия не авторизована.
     """
     cutoff = (
         datetime.now(timezone.utc) - timedelta(hours=since_hours)
@@ -109,7 +109,7 @@ async def fetch(
         scanned = 0
         reached_cutoff = False
 
-        # iter_messages yields newest → oldest (reverse=False).
+        # iter_messages отдаёт от новых к старым (reverse=False).
         async for message in client.iter_messages(
             config.channel, limit=config.max_scan_messages, reverse=False
         ):
@@ -127,7 +127,7 @@ async def fetch(
                     if on_progress:
                         on_progress(FetchProgress(found=len(candidates), scanned=scanned))
 
-    # Newest posts first; proxies without a date go to the end.
+    # Новые посты первыми; прокси без даты идут в конец.
     candidates.sort(key=_posted_sort_key, reverse=True)
 
     with open(config.cache_file, "w") as f:
@@ -150,21 +150,21 @@ async def check(
     on_event: OnCheckEvent | None = None,
 ) -> CheckResult:
     """
-    Step 2 (VPN off): verify candidates by a real handshake — a fake-TLS
-    handshake for ee-secrets, an MTProto connection for dd/plain (see check_proxy).
+    Шаг 2 (VPN выключен): проверяет кандидатов реальным handshake.
+    fake-TLS для ee-секретов, MTProto-соединение для dd/plain (см. check_proxy).
 
-    - target_working=N    : stop as soon as N working proxies are found.
-    - target_working=None : check every candidate.
+    - target_working=N    : остановиться, как только найдено N рабочих прокси.
+    - target_working=None : проверить всех кандидатов.
 
-    Performance: uncached proxies are tested concurrently, bounded by
-    config.proxy_check_concurrency.
+    Производительность: непроверенные прокси тестируются конкурентно,
+    ограничено config.proxy_check_concurrency.
 
-    Cache behaviour (working has priority — see ProxyCache.record):
-    - Fresh cache hit (within TTL)      → returned immediately, not re-tested.
-    - Expired, re-test works            → stored as working.
-    - Expired working, re-test fails    → kept as working (no downgrade).
-    - Expired failing, re-test fails    → confirmed dead → deleted.
-    - New proxy (not in cache)          → tested; result stored.
+    Поведение кэша (рабочий имеет приоритет, см. ProxyCache.record):
+    - Свежее попадание (TTL не истёк)    : возвращается сразу, без повторной проверки.
+    - TTL истёк, новая проверка успешна  : сохраняется как рабочий.
+    - TTL истёк, был рабочим, провал     : остаётся рабочим (без понижения).
+    - TTL истёк, был нерабочим, провал   : подтверждён мёртвым, удаляется.
+    - Новый прокси (нет в кэше)          : тестируется, результат сохраняется.
     """
     if candidates is None:
         with open(config.cache_file) as f:
@@ -179,7 +179,7 @@ async def check(
     )
     cache.load()
 
-    asyncio.get_running_loop().set_exception_handler(lambda _l, _c: None)  # suppress Telethon noise
+    asyncio.get_running_loop().set_exception_handler(lambda _l, _c: None)  # подавляем шум Telethon
 
     working: list[Proxy] = []
     checked = 0
@@ -198,7 +198,7 @@ async def check(
                 total=total, from_cache=from_cache,
             ))
 
-    # ── Phase 1: serve fresh cache hits in order ──────────────────────────────
+    # Фаза 1: свежие попадания из кэша отдаём в порядке очереди.
     to_test: list[Proxy] = []
     for proxy in candidates:
         if target_reached():
@@ -211,9 +211,9 @@ async def check(
         else:
             to_test.append(proxy)
 
-    # ── Phase 2: test concurrently; retry failures at low concurrency ─────────
-    # A high-latency proxy can time out when many handshakes compete for
-    # bandwidth, so failures get a second, calmer attempt before being trusted.
+    # Фаза 2: тестируем конкурентно; провалы повторяем при низкой конкурентности.
+    # Высоколатентный прокси может истечь по таймауту, когда много handshake-ов
+    # одновременно конкурируют за полосу. Провалы получают вторую, более спокойную попытку.
     async def run_pass(proxies: list[Proxy], concurrency: int, *, defer_failures: bool) -> list[Proxy]:
         semaphore = asyncio.Semaphore(concurrency)
         failures: list[Proxy] = []
@@ -232,10 +232,10 @@ async def check(
                     if target_reached():
                         stop.set()
                 elif defer_failures:
-                    failures.append(proxy)  # give it a calmer retry before judging
+                    failures.append(proxy)  # отложить на вторую попытку перед окончательным решением
                 else:
-                    # Working has priority; a failing recheck never downgrades a
-                    # known-working proxy, and a confirmed-dead one is dropped.
+                    # Рабочий имеет приоритет: провальная перепроверка не понижает
+                    # статус заведомо рабочего прокси, а подтверждённо мёртвый удаляется.
                     cache.record(proxy, False)
                     emit(proxy, False)
 
@@ -267,11 +267,11 @@ async def recheck(
     on_event: OnCheckEvent | None = None,
 ) -> CheckResult:
     """
-    Re-verify all proxies that are currently stored as working in the cache,
-    regardless of TTL. Does not require a fetch phase (no VPN needed).
+    Перепроверяет все прокси, хранящиеся в кэше как рабочие, независимо от TTL.
+    Фаза парсинга не нужна (VPN не требуется).
 
-    Useful when previously working proxies go down and you want a quick refresh
-    without scanning the channel again.
+    Полезно, когда ранее рабочие прокси упали и нужно быстрое обновление
+    без повторного парсинга канала.
     """
     cache = ProxyCache(
         config.check_cache_file,
@@ -285,8 +285,8 @@ async def recheck(
     if not candidates:
         return CheckResult()
 
-    # Force-expire all of them so check() actually re-tests instead of
-    # returning stale cache hits.
+    # Принудительно удаляем их, чтобы check() реально перепроверил,
+    # а не вернул устаревшие попадания из кэша.
     cache.clear_working()
     cache.save()
 

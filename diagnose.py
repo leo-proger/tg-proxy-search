@@ -1,13 +1,13 @@
 """
-Diagnose a single proxy, bypassing the cache, with full step-by-step output.
+Диагностика одного прокси с подробным пошаговым выводом, минуя кэш.
 
-Usage:
+Использование:
     python diagnose.py "tg://proxy?server=...&port=...&secret=..."
     python diagnose.py <server> <port> <secret>
 
-Run it against a proxy you can SEE working in Telegram right now, and paste the
-output. Try it both with your VPN on and off — the raw bytes tell us exactly
-where (and whether) the handshake breaks.
+Запускать против прокси, который ВИДЕН как рабочий в Telegram прямо сейчас.
+Попробуйте с VPN включённым и выключенным -- сырые байты точно покажут,
+где (и случается ли) handshake ломается.
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def parse_args() -> tuple[str, int, str]:
     if len(sys.argv) == 2 and sys.argv[1].startswith("tg://"):
         proxy = proxy_from_url(sys.argv[1])
         if not proxy:
-            sys.exit("Could not parse the tg://proxy link.")
+            sys.exit("Не удалось разобрать ссылку tg://proxy.")
         return proxy.server, proxy.port, proxy.secret
     if len(sys.argv) == 4:
         return sys.argv[1], int(sys.argv[2]), sys.argv[3]
@@ -45,46 +45,46 @@ def parse_args() -> tuple[str, int, str]:
 
 
 async def diagnose_faketls(server: str, port: int, key: bytes, sni: str, timeout: float) -> None:
-    print(f"  system clock (UTC): {datetime.now(timezone.utc).isoformat()}")
-    print(f"  connecting to {server}:{port} ...")
+    print(f"  системное время (UTC): {datetime.now(timezone.utc).isoformat()}")
+    print(f"  подключаемся к {server}:{port} ...")
     try:
         reader, writer = await asyncio.wait_for(asyncio.open_connection(server, port), timeout)
     except Exception as e:
-        print(f"  ✗ TCP connect FAILED: {type(e).__name__}: {e}")
+        print(f"  x TCP подключение ПРОВАЛИЛОСЬ: {type(e).__name__}: {e}")
         return
-    print("  ✓ TCP connected")
+    print("  v TCP подключено")
 
     hello, client_digest = _build_client_hello(key, sni)
     writer.write(hello)
     await writer.drain()
-    print(f"  → sent fake-TLS ClientHello ({len(hello)} bytes), SNI={sni!r}")
+    print(f"  -> отправлен fake-TLS ClientHello ({len(hello)} байт), SNI={sni!r}")
 
     try:
         data = await asyncio.wait_for(reader.read(16384), timeout)
     except Exception as e:
-        print(f"  ✗ no response: {type(e).__name__}: {e}")
-        print("    (silence usually means the digest was rejected → proxy fell back to its")
-        print("     camouflage upstream, OR the connection is blocked/filtered on this network)")
+        print(f"  x нет ответа: {type(e).__name__}: {e}")
+        print("    (тишина обычно означает: дайджест отклонён -> прокси перенаправил на свой")
+        print("     камуфляжный upstream, или соединение заблокировано/отфильтровано в этой сети)")
         writer.close()
         return
 
-    print(f"  ← received {len(data)} bytes")
+    print(f"  <- получено {len(data)} байт")
     if not data:
-        print("  ✗ server closed without sending data")
+        print("  x сервер закрыл соединение без данных")
         writer.close()
         return
-    print(f"    first byte: 0x{data[0]:02x} (0x16 = TLS handshake, expected)")
-    print(f"    first 16 bytes: {data[:16].hex()}")
+    print(f"    первый байт: 0x{data[0]:02x} (0x16 = TLS handshake, ожидается)")
+    print(f"    первые 16 байт: {data[:16].hex()}")
 
     if len(data) >= _DIGEST_POS + _DIGEST_LEN:
         server_digest = data[_DIGEST_POS:_DIGEST_POS + _DIGEST_LEN]
         zeroed = data[:_DIGEST_POS] + b"\x00" * _DIGEST_LEN + data[_DIGEST_POS + _DIGEST_LEN:]
         expected = hmac.new(key, client_digest + zeroed, hashlib.sha256).digest()
         match = hmac.compare_digest(expected, server_digest)
-        print(f"    server digest verifies (over full {len(data)}-byte read): {match}")
+        print(f"    дайджест сервера верен (по всем {len(data)} прочитанным байтам): {match}")
         if not match:
-            print("    NOTE: a real proxy may split its reply across reads; the production")
-            print("    check reads exactly ServerHello+ChangeCipherSpec+AppData records.")
+            print("    ЗАМЕЧАНИЕ: настоящий прокси может разбить ответ на несколько read;")
+            print("    продакшн-проверка читает ровно ServerHello+ChangeCipherSpec+AppData записи.")
     writer.close()
 
 
@@ -104,15 +104,15 @@ async def main() -> None:
     print("─" * 60)
 
     if parsed.kind == FAKETLS:
-        print("FAKE-TLS check:")
+        print("FAKE-TLS проверка:")
         await diagnose_faketls(server, port, parsed.key, parsed.domain or server, cfg.tcp_timeout)
     else:
-        print(f"{parsed.kind.upper()} check (via Telethon MTProto):")
+        print(f"{parsed.kind.upper()} проверка (через Telethon MTProto):")
         ts = time.monotonic()
         ok = await mtproto_check(
             server, port, parsed.telethon_secret(), cfg.api_id, cfg.api_hash, cfg.tcp_timeout
         )
-        print(f"  result: {'WORKING' if ok else 'FAILED'}  ({time.monotonic() - ts:.1f}s)")
+        print(f"  результат: {'РАБОЧИЙ' if ok else 'ПРОВАЛ'}  ({time.monotonic() - ts:.1f}с)")
 
     print("─" * 60)
 

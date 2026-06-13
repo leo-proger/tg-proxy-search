@@ -90,7 +90,7 @@ def prompt_settings() -> RunSettings:
     return RunSettings(mode=mode, target_working=target_working, since_hours=since_hours)
 
 
-# ── URL helper ────────────────────────────────────────────────────────────────
+# ── Вспомогательная функция для URL ──────────────────────────────────────────
 
 def _open_url(url: str) -> None:
     if sys.platform == "darwin":

@@ -1,20 +1,20 @@
 """
-Decode and classify MTProto proxy secrets.
+Декодирование и классификация секретов MTProto прокси.
 
-A ``tg://proxy`` secret can arrive in several encodings and flavours, and the
-same proxy may be advertised in more than one of them (e.g. the post text uses
-hex while the inline "Connect" button uses base64url — those are the *same*
-bytes). Telethon's own normaliser only strips the ``ee``/``dd`` prefix when the
-secret is a *hex string*, so a base64url-encoded ee/dd secret ends up with the
-marker byte kept as part of the key and the last key byte dropped — a silently
-wrong key. We therefore decode to raw bytes ourselves and classify by the
-marker byte, which works regardless of the original encoding.
+Секрет ``tg://proxy`` может прийти в нескольких кодировках и видах,
+причём один и тот же прокси может рекламироваться в нескольких сразу
+(например, текст поста в hex, кнопка "Подключиться" в base64url -- это одни и те же байты).
+Встроенный нормализатор Telethon срезает префикс ``ee``/``dd`` только если секрет
+в виде hex-строки, поэтому base64url-закодированный ee/dd секрет в Telethon
+оставляет маркерный байт в ключе и теряет последний байт ключа -- ошибка без предупреждений.
+Поэтому мы сами декодируем в сырые байты и классифицируем по маркерному байту,
+что работает независимо от исходной кодировки.
 
-Flavours (by the first raw byte):
-  0xEE  fake-TLS   — key = bytes[1:17], the rest is the camouflage domain (SNI).
-                     Telethon CANNOT speak this protocol; use faketls_check.
-  0xDD  randomized — key = bytes[1:17] (ConnectionTcpMTProxyRandomizedIntermediate).
-  else  plain      — key = bytes[0:16].
+Виды (по первому сырому байту):
+  0xEE  fake-TLS    -- ключ = bytes[1:17], остаток -- камуфляжный домен (SNI).
+                       Telethon НЕ УМЕЕТ этот протокол; использовать faketls_check.
+  0xDD  randomized  -- ключ = bytes[1:17] (ConnectionTcpMTProxyRandomizedIntermediate).
+  иначе plain       -- ключ = bytes[0:16].
 """
 from __future__ import annotations
 
@@ -30,32 +30,32 @@ PLAIN = "plain"
 @dataclass(frozen=True)
 class ParsedSecret:
     kind: str          # FAKETLS | DD | PLAIN
-    key: bytes         # the 16-byte MTProto key
-    domain: str        # fake-TLS camouflage host (empty unless kind == FAKETLS)
+    key: bytes         # 16-байтовый MTProto ключ
+    domain: str        # камуфляжный домен для fake-TLS (пусто, если kind != FAKETLS)
 
     def telethon_secret(self) -> str:
         """
-        Canonical hex secret that Telethon's normaliser handles correctly.
-        Only meaningful for DD / PLAIN proxies (fake-TLS is checked separately).
+        Канонический hex-секрет, который нормализатор Telethon обрабатывает правильно.
+        Актуально только для DD / PLAIN прокси (fake-TLS проверяется отдельно).
         """
         return ("dd" if self.kind == DD else "") + self.key.hex()
 
 
 def decode_secret(secret: str) -> bytes:
     """
-    Turn a secret string into its raw bytes, accepting every form seen in the
-    wild: hex, hex with an ee/dd prefix, base64url, and URL-encoded base64url
-    (``%3D`` padding from links that were percent-encoded).
+    Преобразует строку секрета в сырые байты, принимая все форматы из реальных постов:
+    hex, hex с префиксом ee/dd, base64url и URL-encoded base64url
+    (``%3D`` паддинг из percent-encoded ссылок).
 
-    Mirrors the hex-first / base64url-fallback convention used by Telegram
-    clients, so a hex-looking secret is never mis-read as base64.
+    Следует логике Telegram-клиентов: hex сначала, base64url как запасной вариант,
+    чтобы hex-похожий секрет не был прочитан как base64.
     """
     secret = unquote(secret).strip()
     try:
         return bytes.fromhex(secret)
     except ValueError:
         pass
-    # base64url, tolerant of missing padding
+    # base64url, терпим к отсутствующему паддингу
     return base64.urlsafe_b64decode(secret + "=" * (-len(secret) % 4))
 
 

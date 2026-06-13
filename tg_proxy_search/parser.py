@@ -28,11 +28,11 @@ def proxy_from_url(url: str, posted_at: str | None = None) -> Proxy | None:
 
 
 def extract_from_message(message: Message) -> list[Proxy]:
-    # message.date is timezone-aware UTC; convert to MSK for consistency with the cache.
+    # message.date в UTC с таймзоной; конвертируем в МСК для согласованности с кэшем.
     date: datetime | None = getattr(message, "date", None)
     posted_at = date.astimezone(MSK).isoformat() if date else None
 
-    # Priority: URL from "Connect" buttons — already a ready tg://proxy link
+    # Приоритет: URL из кнопок "Подключиться", уже готовая ссылка tg://proxy
     if message.buttons:
         proxies: list[Proxy] = []
         for row in message.buttons:
@@ -45,7 +45,7 @@ def extract_from_message(message: Message) -> list[Proxy]:
         if proxies:
             return proxies
 
-    # Fallback: text format "Server: / Port: / Secret:"
+    # Запасной вариант: текстовый формат "Server: / Port: / Secret:"
     if message.text:
         server_m = _SERVER_RE.search(message.text)
         port_m = _PORT_RE.search(message.text)

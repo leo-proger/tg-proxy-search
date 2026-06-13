@@ -22,17 +22,17 @@ warnings.filterwarnings("ignore", category=UserWarning, module="telethon")
 
 async def check_proxy(proxy: Proxy, api_id: int, api_hash: str, timeout: float) -> bool:
     """
-    Verify a proxy end-to-end, dispatching on its secret flavour.
+    Проверяет прокси полным подключением, выбирая путь по типу секрета.
 
-    Most public proxies today are fake-TLS (ee-secrets), and Telethon cannot
-    speak that protocol — it strips the ee/domain and talks plain randomized
-    intermediate, so a working fake-TLS proxy stays silent and looks dead.
-    Those go through faketls_check (a real fake-TLS handshake); dd/plain
-    secrets still use Telethon's MTProto connection.
+    Большинство публичных прокси сегодня используют fake-TLS (ee-секреты), а Telethon
+    не умеет этот протокол: он срезает ee/домен и говорит randomized-intermediate,
+    поэтому рабочий fake-TLS прокси молчит и выглядит мёртвым.
+    Такие прокси идут через faketls_check (настоящий fake-TLS handshake); dd/plain
+    по-прежнему через MTProto-соединение Telethon.
 
-    A False result here is not necessarily final: the caller retries failures
-    at lower concurrency, because a working-but-slow proxy can time out when
-    many handshakes compete for bandwidth at once.
+    Результат False здесь не окончательный: вызывающий код перепроверяет провалы
+    при более низкой конкурентности, так как медленный прокси может истечь по таймауту,
+    когда много handshake-ов одновременно конкурируют за полосу.
     """
     try:
         parsed = parse_secret(proxy.secret)
@@ -48,9 +48,9 @@ async def mtproto_check(
     server: str, port: int, secret: str, api_id: int, api_hash: str, timeout: float
 ) -> bool:
     """
-    Open a real MTProto connection through a dd/plain proxy and complete the
-    handshake. Single TCP connection — no separate pre-check — so high-latency
-    proxies aren't penalised by a redundant connect.
+    Открывает настоящее MTProto-соединение через dd/plain прокси и завершает handshake.
+    Одно TCP-соединение без предварительной проверки, чтобы не штрафовать
+    высоколатентные прокси лишним коннектом.
     """
     try:
         client = TelegramClient(
@@ -74,28 +74,26 @@ async def mtproto_check(
             pass
 
 
-# ── Fake-TLS handshake ──────────────────────────────────────────────────────
-# A fake-TLS proxy authenticates the client by an HMAC-SHA256 digest embedded in
-# the TLS ClientHello's 32-byte random field (keyed by the 16-byte secret, taken
-# over the ClientHello with that field zeroed; the last 4 bytes carry a Unix
-# timestamp). A correct digest makes the proxy reply with a camouflage
-# ServerHello + ChangeCipherSpec + ApplicationData, itself signed with a matching
-# digest over (client_digest || response). A wrong digest makes the proxy forward
-# to its real upstream (or stay silent), so verifying the response digest tells a
-# genuine MTProto proxy apart from an ordinary TLS server.
+# Fake-TLS handshake
+# Fake-TLS прокси аутентифицирует клиента по HMAC-SHA256 дайджесту в 32-байтовом поле
+# random TLS ClientHello (ключ: 16-байтовый секрет; поле при расчёте обнуляется,
+# последние 4 байта содержат Unix timestamp). Правильный дайджест заставляет прокси
+# ответить камуфляжными ServerHello + ChangeCipherSpec + ApplicationData,
+# подписанными своим дайджестом по (client_digest || response).
+# Неправильный дайджест: прокси форвардит запрос на настоящий upstream или молчит.
+# Проверка дайджеста ответа позволяет отличить настоящий MTProto прокси от обычного TLS.
 #
-# Protocol reference: github.com/alexbers/mtprotoproxy (handle_fake_tls_handshake).
+# Реализация: github.com/alexbers/mtprotoproxy (handle_fake_tls_handshake).
 
 _DIGEST_POS = 11
 _DIGEST_LEN = 32
-_HELLO_LEN = 517  # total ClientHello record bytes — the size a real Chrome/tdlib hello is padded to
+_HELLO_LEN = 517  # общий размер ClientHello в байтах, до которого дополняется настоящий Chrome/tdlib
 
-# A byte-exact Chrome/tdlib-style ClientHello is required, not a hand-rolled
-# minimal one: proxies (mtg) reject hellos with no non-GREASE cipher or a missing
-# SNI, and DPI in censored networks drops connections whose ClientHello doesn't
-# fingerprint as a real browser. These are the fixed cipher-suite list and
-# extensions lifted verbatim from a known-good hello (9seconds/mtg testdata);
-# only the SNI, session id, key-share point, random/digest and padding vary.
+# Нужен точный Chrome/tdlib-подобный ClientHello, а не минимальный самодельный:
+# mtg-прокси отклоняет hello без non-GREASE шифров или без SNI,
+# а DPI в цензурируемых сетях режет соединения с нетипичным fingerprint.
+# Ниже фиксированные cipher-suite и расширения из реального hello (9seconds/mtg testdata);
+# варьируются только SNI, session id, key-share, random/digest и паддинг.
 _CIPHER_SUITES = bytes.fromhex(
     "0034130313011302c02cc02bc024c023c00ac009cca9c030c02fc028c027c014c013cca8009d009c003d003c0035002fc008c012000a"
 )
@@ -140,13 +138,13 @@ def _build_client_hello(key: bytes, sni: str) -> tuple[bytes, bytes]:
     )
     prefix = (
         b"\x03\x03"                       # client_version (TLS 1.2)
-        + b"\x00" * _DIGEST_LEN           # random — digest is written here
-        + b"\x20" + os.urandom(32)        # session_id (32 bytes)
+        + b"\x00" * _DIGEST_LEN           # random -- здесь будет записан дайджест
+        + b"\x20" + os.urandom(32)        # session_id (32 байта)
         + _CIPHER_SUITES
         + b"\x01\x00"                     # compression: null
     )
-    # Pad (extension 0x0015) so the whole record is exactly _HELLO_LEN bytes,
-    # matching a real browser's padded hello.
+    # Добавляем паддинг (расширение 0x0015), чтобы весь record был ровно _HELLO_LEN байт,
+    # как в настоящем браузерном hello.
     overhead = 5 + 4 + len(prefix) + 2 + len(extensions) + 4  # record+handshake hdrs, ext-len field, padding hdr
     pad_len = max(0, _HELLO_LEN - overhead)
     extensions += b"\x00\x15" + pad_len.to_bytes(2, "big") + b"\x00" * pad_len

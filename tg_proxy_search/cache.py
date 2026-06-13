@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .models import Proxy
 
-# Moscow time (UTC+3, no DST) — all human-facing timestamps are written in MSK.
+# Московское время (UTC+3, без перехода на летнее). Все метки времени пишутся в МСК.
 MSK = timezone(timedelta(hours=3))
 
 
@@ -21,11 +21,11 @@ class CacheEntry:
     port: int
     secret: str
     ok: bool
-    checked_at: str  # ISO 8601 with timezone (MSK)
+    checked_at: str  # ISO 8601 с таймзоной (МСК)
 
     def age_hours(self) -> float:
-        # Parsing is timezone-aware, so age is correct regardless of which
-        # timezone the timestamp was stored in (old UTC entries still work).
+        # Парсинг учитывает таймзону, поэтому возраст корректен независимо от того,
+        # в какой таймзоне хранится метка (старые UTC-записи тоже работают).
         ts = datetime.fromisoformat(self.checked_at)
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=timezone.utc)
@@ -34,18 +34,18 @@ class CacheEntry:
 
 class ProxyCache:
     """
-    Caching rules:
-    - New proxy                                    → test → store result
-    - Working,  age < working_recheck_hours        → return True from cache
-    - Working,  age ≥ working_recheck_hours        → re-test (see record())
-    - Failed,   age < failed_recheck_hours         → return False from cache
-    - Failed,   age ≥ failed_recheck_hours         → re-test (see record())
+    Правила кэша:
+    - Новый прокси                               : тест, сохранение результата
+    - Рабочий, возраст < working_recheck_hours   : вернуть True из кэша
+    - Рабочий, возраст >= working_recheck_hours  : перепроверить (см. record())
+    - Нерабочий, возраст < failed_recheck_hours  : вернуть False из кэша
+    - Нерабочий, возраст >= failed_recheck_hours : перепроверить (см. record())
 
-    Duplicate / re-test resolution — a WORKING status always wins (see record()):
-    - new check works                → store as working (priority)
-    - new check fails, was working   → keep the old working entry (no downgrade)
-    - new check fails, was failing   → confirmed dead → DELETE
-    - new check fails, unknown proxy → store as failing
+    Приоритет при повторной проверке (РАБОЧИЙ всегда побеждает, см. record()):
+    - новая проверка успешна                     : сохранить как рабочий
+    - новая провалена, ранее был рабочим         : оставить старую запись (без понижения)
+    - новая провалена, ранее был нерабочим       : подтверждён мёртвым, удалить
+    - новая провалена, прокси неизвестен         : сохранить как нерабочий
     """
 
     def __init__(self, path: str, working_recheck_hours: float, failed_recheck_hours: float) -> None:
@@ -71,9 +71,9 @@ class ProxyCache:
 
     def get(self, proxy: Proxy) -> bool | None:
         """
-        True  — cached as working, still within recheck window.
-        False — cached as failed, still within recheck window.
-        None  — not in cache, or TTL expired → needs (re-)testing.
+        True  : прокси в кэше как рабочий, TTL не истёк.
+        False : прокси в кэше как нерабочий, TTL не истёк.
+        None  : нет в кэше или TTL истёк, нужна (пере)проверка.
         """
         entry = self._entries.get(self._key(proxy))
         if entry is None:
@@ -82,10 +82,10 @@ class ProxyCache:
             return True
         if not entry.ok and entry.age_hours() < self._failed_recheck_hours:
             return False
-        return None  # TTL expired — re-test
+        return None  # TTL истёк, нужна перепроверка
 
     def is_known(self, proxy: Proxy) -> bool:
-        """True if the proxy has any entry (even expired). Used to detect rechecks."""
+        """True, если прокси есть в кэше (даже с истёкшим TTL)."""
         return self._key(proxy) in self._entries
 
     def set(self, proxy: Proxy, ok: bool) -> None:
@@ -102,23 +102,23 @@ class ProxyCache:
 
     def record(self, proxy: Proxy, ok: bool) -> None:
         """
-        Merge a fresh check result, giving priority to a WORKING status.
-        See the class docstring for the full resolution table.
+        Записывает результат проверки с приоритетом на РАБОЧИЙ статус.
+        Полная таблица приоритетов описана в docstring класса.
         """
         if ok:
-            self.set(proxy, True)          # working always wins, refresh timestamp
+            self.set(proxy, True)          # рабочий всегда побеждает, обновляем метку времени
             return
 
         existing = self._entries.get(self._key(proxy))
         if existing is None:
-            self.set(proxy, False)         # new proxy that failed → record it
+            self.set(proxy, False)         # новый прокси провалил проверку, записываем
         elif existing.ok:
-            return                         # don't downgrade a known-working proxy
+            return                         # не понижаем статус заведомо рабочего прокси
         else:
-            self.delete(proxy)             # failing recheck of a failing proxy → dead
+            self.delete(proxy)             # повторный провал нерабочего прокси, удаляем
 
     def working_proxies(self) -> list[Proxy]:
-        """All proxies currently stored as working (any TTL)."""
+        """Все прокси, хранящиеся в кэше как рабочие (TTL не учитывается)."""
         return [
             Proxy(server=e.server, port=e.port, secret=e.secret)
             for e in self._entries.values()
@@ -126,13 +126,13 @@ class ProxyCache:
         ]
 
     def clear_working(self) -> None:
-        """Remove all working entries (used before a full recheck)."""
+        """Удаляет все рабочие записи (вызывается перед полной перепроверкой)."""
         dead = [k for k, e in self._entries.items() if e.ok]
         for k in dead:
             del self._entries[k]
 
     @property
     def stats(self) -> tuple[int, int]:
-        """Returns (working_count, failed_count) of current entries."""
+        """Возвращает (кол-во рабочих, кол-во нерабочих) из текущего кэша."""
         working = sum(1 for e in self._entries.values() if e.ok)
         return working, len(self._entries) - working
