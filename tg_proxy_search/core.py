@@ -56,10 +56,12 @@ OnCheckEvent = Callable[[ProxyChecked], None]
 class FetchResult:
     candidates: list[Proxy] = field(default_factory=list)
     scanned: int = 0
-    # True if the scan stopped at the safety cap (max_scan_messages) rather than
-    # naturally ending — the time window / channel may extend further.
+    # True if the scan stopped at the safety cap rather than naturally ending.
     limit_reached: bool = False
     since_hours: float | None = None
+    # ID of the oldest message seen — pass as offset_id to fetch() to continue
+    # from where this batch left off (exclusive, i.e. next batch starts older).
+    last_message_id: int | None = None
 
     @property
     def found(self) -> int:
@@ -86,16 +88,20 @@ async def fetch(
     since_hours: float | None = None,
     session_file: str = "telethon",
     on_progress: OnFetchProgress | None = None,
+    offset_id: int = 0,
+    batch_size: int | None = None,
 ) -> FetchResult:
     """
     Step 1 (VPN on): read the proxy channel newest → oldest and save candidates.
 
-    - since_hours=None : scan up to config.max_scan_messages messages.
-    - since_hours=X    : scan until a post older than X hours is reached
-                         (still bounded by config.max_scan_messages).
+    - since_hours=None : scan until batch_size / max_scan_messages limit.
+    - since_hours=X    : scan until a post older than X hours is reached.
+    - offset_id        : start from messages older than this ID (for pagination).
+    - batch_size       : how many messages to scan; defaults to max_scan_messages.
 
     Raises RuntimeError if the session is not authorized.
     """
+    limit = batch_size if batch_size is not None else config.max_scan_messages
     cutoff = (
         datetime.now(timezone.utc) - timedelta(hours=since_hours)
         if since_hours is not None else None
@@ -109,12 +115,14 @@ async def fetch(
         seen: set[tuple[str, int, str]] = set()
         scanned = 0
         reached_cutoff = False
+        last_message_id: int | None = None
 
         # iter_messages yields newest → oldest (reverse=False).
         async for message in client.iter_messages(
-            config.channel, limit=config.max_scan_messages, reverse=False
+            config.channel, limit=limit, reverse=False, offset_id=offset_id,
         ):
             scanned += 1
+            last_message_id = message.id
             mdate: datetime | None = getattr(message, "date", None)
             if cutoff is not None and mdate is not None and mdate < cutoff:
                 reached_cutoff = True
@@ -134,12 +142,13 @@ async def fetch(
     with open(config.cache_file, "w") as f:
         json.dump([asdict(p) for p in candidates], f, indent=2)
 
-    limit_reached = scanned >= config.max_scan_messages and not reached_cutoff
+    limit_reached = scanned >= limit and not reached_cutoff
     return FetchResult(
         candidates=candidates,
         scanned=scanned,
         limit_reached=limit_reached,
         since_hours=since_hours,
+        last_message_id=last_message_id,
     )
 
 
