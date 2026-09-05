@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 proxies.json
 proxy_cache.json
+docs/superpowers/
