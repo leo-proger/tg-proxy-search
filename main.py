@@ -1,13 +1,8 @@
 """
 Интерактивный поиск MTProto-прокси.
 
-Выберите режим:
-  1. Найти N рабочих прокси.
-  2. Взять все прокси за последние X часов.
-  3. Перепроверить рабочие из кэша (без VPN).
-
-Этапы 1-2: включить VPN → парсится канал → выключить VPN → проверяются прокси.
-Режим 3:   выключить VPN — берёт ранее найденные рабочие и проверяет заново.
+Сначала выберите источник: свежий парсинг Telegram-канала или публичный
+proxies.txt. Затем выберите, сколько прокси проверить.
 """
 from __future__ import annotations
 
@@ -35,8 +30,16 @@ class C:
 
 # ── Выбор режима ──────────────────────────────────────────────────────────────
 
+SOURCE_TELEGRAM = 1
+SOURCE_PUBLIC_LIST = 2
+
+MODE_FIND_TARGET = 1
+MODE_CHECK_ALL = 2
+MODE_RECHECK_CACHE = 3
+
 @dataclass
 class RunSettings:
+    source: int
     mode: int
     target_working: int | None  # N (режим 1)
     since_hours: float | None   # X (режим 2)
@@ -66,28 +69,54 @@ def _ask_float(prompt: str, minimum: float = 0.0) -> float:
         print(f"{C.FAIL}  Введите число > {minimum}.{C.RST}")
 
 
-def prompt_settings() -> RunSettings:
-    print(f"{C.BOLD}Выберите режим:{C.RST}")
-    print(f"  {C.BOLD}1{C.RST}  Найти N рабочих прокси")
-    print(f"  {C.BOLD}2{C.RST}  Взять все прокси за последние X часов")
-    print(f"  {C.BOLD}3{C.RST}  Перепроверить рабочие из кэша {C.DIM}(выключить VPN){C.RST}\n")
+def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
+    print(f"{C.BOLD}Откуда взять прокси?{C.RST}")
+    print(f"  {C.BOLD}1{C.RST}  Спарсить свежие из Telegram-канала {C.DIM}(нужен VPN){C.RST}")
+    print(f"  {C.BOLD}2{C.RST}  Скачать из публичного proxies.txt {C.DIM}(VPN не нужен){C.RST}\n")
 
     while True:
-        choice = input("Режим [1/2/3]: ").strip()
-        if choice in ("1", "2", "3"):
+        choice = input("Источник [1/2]: ").strip()
+        if choice in ("1", "2"):
+            source = int(choice)
+            break
+        print(f"{C.FAIL}  Введите 1 или 2.{C.RST}")
+
+    print(f"\n{C.BOLD}Что сделать?{C.RST}")
+    print(f"  {C.BOLD}1{C.RST}  Найти N прокси, прошедших проверку")
+    if source == SOURCE_TELEGRAM:
+        print(f"  {C.BOLD}2{C.RST}  Проверить прокси из постов за последние X часов")
+        if has_working_cache:
+            print(f"  {C.BOLD}3{C.RST}  Перепроверить прокси из кэша {C.DIM}(VPN не нужен){C.RST}")
+    else:
+        print(f"  {C.BOLD}2{C.RST}  Проверить весь публичный список")
+    print()
+
+    valid_modes = {MODE_FIND_TARGET, MODE_CHECK_ALL}
+    if source == SOURCE_TELEGRAM and has_working_cache:
+        valid_modes.add(MODE_RECHECK_CACHE)
+
+    choices = "/".join(str(mode) for mode in sorted(valid_modes))
+    while True:
+        choice = input(f"Действие [{choices}]: ").strip()
+        if choice.isdigit() and int(choice) in valid_modes:
             mode = int(choice)
             break
-        print(f"{C.FAIL}  Введите 1, 2 или 3.{C.RST}")
+        print(f"{C.FAIL}  Введите {', '.join(str(mode) for mode in sorted(valid_modes))}.{C.RST}")
 
     target_working: int | None = None
     since_hours: float | None = None
-    if mode == 1:
-        target_working = _ask_int("Сколько рабочих прокси найти? ")
-    if mode == 2:
+    if mode == MODE_FIND_TARGET:
+        target_working = _ask_int("Сколько прокси найти? ")
+    if source == SOURCE_TELEGRAM and mode == MODE_CHECK_ALL:
         since_hours = _ask_float("За сколько последних часов брать посты? ")
 
     print()
-    return RunSettings(mode=mode, target_working=target_working, since_hours=since_hours)
+    return RunSettings(
+        source=source,
+        mode=mode,
+        target_working=target_working,
+        since_hours=since_hours,
+    )
 
 
 # ── Вспомогательная функция для URL ──────────────────────────────────────────
@@ -140,14 +169,27 @@ async def _run_fetch(config: api.Config, settings: RunSettings) -> api.FetchResu
     return result
 
 
-async def _run_check(config: api.Config, settings: RunSettings) -> api.CheckResult:
+async def _run_public_fetch(config: api.Config) -> list[api.Proxy]:
+    print(f"{C.BOLD}── Шаг 1: скачивается публичный список{C.RST}")
+    print(f"{C.DIM}  Источник: {api.PUBLIC_PROXY_LIST_URL}{C.RST}\n")
+    candidates = await api.download_public_proxies(timeout=config.tcp_timeout)
+    print(f"  {C.OK}Кандидатов загружено: {len(candidates)}{C.RST}\n")
+    return candidates
+
+
+async def _run_check(
+    config: api.Config,
+    settings: RunSettings,
+    *,
+    candidates: list[api.Proxy] | None = None,
+) -> api.CheckResult:
     print(f"{C.BOLD}── Шаг 2: проверяется{C.RST}")
     print(f"{C.WARN}  VPN должен быть ВЫКЛЮЧЁН (подключение идёт с вашего реального IP){C.RST}")
     target = settings.target_working
     target_label = str(target) if target is not None else "все"
     print(f"{C.DIM}  Цель: {target_label}  |  таймаут: {config.tcp_timeout:g}с{C.RST}\n")
 
-    return await _do_check(config, target_working=target)
+    return await _do_check(config, target_working=target, candidates=candidates)
 
 
 async def _run_recheck(config: api.Config) -> api.CheckResult:
@@ -230,11 +272,15 @@ async def _do_recheck(config: api.Config) -> api.CheckResult:
 
 # ── Оркестрация ───────────────────────────────────────────────────────────────
 
-async def run(settings: RunSettings) -> None:
-    config = api.Config.from_env()
+async def run(settings: RunSettings, *, config: api.Config | None = None) -> None:
+    config = config or api.Config.from_env()
 
-    if settings.mode == 3:
+    if settings.mode == MODE_RECHECK_CACHE:
         check_result = await _run_recheck(config)
+        working = check_result.working
+    elif settings.source == SOURCE_PUBLIC_LIST:
+        candidates = await _run_public_fetch(config)
+        check_result = await _run_check(config, settings, candidates=candidates)
         working = check_result.working
     else:
         fetch_result = await _run_fetch(config, settings)
@@ -249,9 +295,9 @@ async def run(settings: RunSettings) -> None:
         check_result = await _run_check(config, settings)
         working = check_result.working
 
-        if settings.target_working is not None and len(working) < settings.target_working:
-            print(f"{C.WARN}  ⚠ Найдено только {len(working)} из {settings.target_working} — "
-                  f"кандидаты закончились.{C.RST}\n")
+    if settings.target_working is not None and len(working) < settings.target_working:
+        print(f"{C.WARN}  ⚠ Найдено только {len(working)} из {settings.target_working} — "
+              f"кандидаты закончились.{C.RST}\n")
 
     if not working:
         if settings.mode != 3:
@@ -267,9 +313,10 @@ async def run(settings: RunSettings) -> None:
 
 
 if __name__ == "__main__":
-    settings = prompt_settings()
     try:
-        asyncio.run(run(settings))
+        config = api.Config.from_env()
+        settings = prompt_settings(has_working_cache=api.has_working_cache(config))
+        asyncio.run(run(settings, config=config))
     except KeyboardInterrupt:
         print(f"\n{C.WARN}  Прервано.{C.RST}")
     except RuntimeError as e:

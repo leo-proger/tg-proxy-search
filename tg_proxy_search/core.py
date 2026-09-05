@@ -79,6 +79,19 @@ class CheckResult:
 
 # ── API ───────────────────────────────────────────────────────────────────────
 
+def has_working_cache(config: Config) -> bool:
+    cache = ProxyCache(
+        config.check_cache_file,
+        config.proxy_working_recheck_hours,
+        config.proxy_failed_recheck_hours,
+    )
+    try:
+        cache.load()
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return False
+    return bool(cache.working_proxies())
+
+
 async def fetch(
     config: Config,
     *,

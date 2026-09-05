@@ -62,7 +62,9 @@ class ProxyCache:
         if not self._path.exists():
             return
         with self._path.open() as f:
-            raw: dict[str, dict] = json.load(f)
+            raw = json.load(f)
+        if not isinstance(raw, dict):
+            raise ValueError("cache must contain a JSON object")
         self._entries = {k: CacheEntry(**v) for k, v in raw.items()}
 
     def save(self) -> None:
