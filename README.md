@@ -13,6 +13,18 @@
 
 Поддерживаются все типы секретов: `ee` (fake-TLS), `dd` (randomized), plain, в любой кодировке (hex, base64url).
 
+## Публичный список прокси
+
+До 1000 последних уникальных прокси доступны в [`proxies.txt`](https://raw.githubusercontent.com/leo-proger/tg-proxy-search/main/proxies.txt). Одна строка — одна готовая ссылка:
+
+```text
+tg://proxy?server=example.org&port=443&secret=...
+```
+
+Список автоматически обновляется из Telegram-канала каждые два часа. Это спарсенные кандидаты: отдельная проверка работоспособности для них не выполняется, поэтому часть прокси может уже не работать.
+
+`proxies.txt` управляется только scheduled pipeline и не используется локальной программой. При обычном запуске программа по-прежнему самостоятельно парсит канал и записывает результат в локальный `proxies.json`.
+
 ## Установка
 
 Нужен Python 3.13+ и [uv](https://github.com/astral-sh/uv).
@@ -41,15 +53,28 @@ cp .env.example .env
 ```bash
 uv run python -c "
 from telethon.sync import TelegramClient
-from dotenv import load_dotenv; import os; load_dotenv()
-api_id = int(os.environ.get('API_ID'))
-api_hash = os.environ.get('API_HASH')
-with TelegramClient('telethon', api_id, api_hash) as c:
+from dotenv import load_dotenv
+from tg_proxy_search import Config
+load_dotenv()
+config = Config.from_env()
+with TelegramClient('telethon', config.api_id, config.api_hash) as c:
     c.start(); print('Готово')
 "
 ```
 
 После этого появится файл `telethon.session` — он нужен для работы.
+
+### Настройка scheduled pipeline для владельца репозитория
+
+Workflow использует встроенные API ID/hash проекта. Для неинтерактивной авторизации нужно один раз преобразовать уже авторизованный `telethon.session` в base64:
+
+```bash
+base64 < telethon.session | tr -d '\n'
+```
+
+Сохраните результат в GitHub: **Settings → Secrets and variables → Actions → New repository secret** с именем `TELETHON_SESSION_BASE64`. Не публикуйте это значение: session-файл предоставляет доступ к авторизованному Telegram-аккаунту, поэтому для pipeline рекомендуется отдельный аккаунт.
+
+Для первого запуска откройте **Actions → Update public proxy list → Run workflow**. После успешной проверки workflow будет запускаться автоматически каждые два часа и коммитить только изменившийся `proxies.txt`.
 
 ## Запуск
 

@@ -29,6 +29,16 @@ uv run python diagnose.py "tg://proxy?..."  # диагностика одног�
 - `tg_proxy_search/cache.py` — `ProxyCache`: TTL-кэш (working 48ч, failed 24ч), "working wins" при повторной проверке.
 - `tg_proxy_search/parser.py` — извлечение прокси из сообщений (кнопки → текст fallback).
 - `tg_proxy_search/models.py` — `Proxy` (frozen dataclass, `posted_at` исключён из hash/eq).
+- `tg_proxy_search/public_list.py` — объединение, валидация и атомарная запись публичного списка URL.
+- `tg_proxy_search/update_public_proxies.py` — неинтерактивное обновление публичного списка для scheduled pipeline.
+
+## Публичный список
+
+`.github/workflows/update-proxies.yml` каждые два часа парсит канал и обновляет корневой `proxies.txt`. Новые уникальные URL добавляются в начало, старые сохраняются в прежнем порядке, хвост обрезается до 1000 записей.
+
+`proxies.txt` принадлежит только pipeline. Не читайте его из интерактивной программы и не смешивайте с локальным `proxies.json`. При ошибке или пустом результате парсинга последний успешный публичный список должен остаться без изменений.
+
+Для workflow требуется repository secret `TELETHON_SESSION_BASE64` — base64-представление авторизованного `telethon.session`. Встроенные API ID/hash используются без дополнительных secrets.
 
 ## Критично понимать про fake-TLS
 
