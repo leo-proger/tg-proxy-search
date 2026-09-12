@@ -11,7 +11,7 @@ Telegram.
 Ниже показан основной сценарий: найти три рабочих прокси из публичного списка.
 
 ```text
-$ uv run python main.py
+$ python3 main.py
 
 Откуда взять прокси?
   1  Спарсить свежие из Telegram-канала (нужен VPN)
@@ -53,21 +53,22 @@ $ uv run python main.py
 
 Понадобятся:
 
-- Python 3.13 или новее;
-- [uv](https://github.com/astral-sh/uv).
+- Python 3.13 или новее с `pip`.
 
-Скачайте проект и установите зависимости:
+Скачайте проект, создайте виртуальное окружение и установите зависимости:
 
 ```bash
 git clone https://github.com/leo-proger/tg-proxy-search.git
 cd tg-proxy-search
-uv sync
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install .
 ```
 
 Запустите программу с выключенным VPN:
 
 ```bash
-uv run python main.py
+python3 main.py
 ```
 
 Для самого простого варианта выберите:
@@ -120,7 +121,7 @@ git pull
 по умолчанию используются встроенные значения.
 
 ```bash
-uv run python -c "
+python3 -c "
 from telethon.sync import TelegramClient
 from tg_proxy_search import Config
 config = Config.from_env()
@@ -136,7 +137,7 @@ with TelegramClient('telethon', config.api_id, config.api_hash) as client:
 Теперь запустите основную программу:
 
 ```bash
-uv run python main.py
+python3 main.py
 ```
 
 Выберите источник `1` и следуйте подсказкам о включении и выключении VPN.
@@ -181,7 +182,7 @@ cp .env.example .env
 Если Telegram показывает прокси как рабочий, а программа — как нерабочий, выключите VPN и запустите диагностику:
 
 ```bash
-uv run python diagnose.py "tg://proxy?server=...&port=...&secret=..."
+python3 diagnose.py "tg://proxy?server=...&port=...&secret=..."
 ```
 
 Эта команда нужна для поиска проблем и не использует сохранённый результат из кэша.
