@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -40,6 +41,21 @@ class PromptSettingsTests(unittest.TestCase):
         self.assertEqual(settings.source, main.SOURCE_PUBLIC_LIST)
         self.assertEqual(settings.mode, 3)
         self.assertIn("Обновить локальный proxies.txt", output)
+
+    def test_public_source_shows_local_list_update_time(self) -> None:
+        _settings, output = self.prompt(["2", "2"], has_working_cache=False)
+
+        self.assertIsNotNone(
+            re.search(r"Последнее обновление: \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}", output)
+        )
+
+    def test_missing_local_list_has_clear_update_status(self) -> None:
+        formatter = getattr(main, "_format_last_updated", None)
+        self.assertIsNotNone(formatter)
+
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "proxies.txt"
+            self.assertEqual(formatter(missing), "файл отсутствует")
 
     def test_telegram_source_hides_cache_mode_without_working_cache(self) -> None:
         settings, output = self.prompt(["1", "2", "24"], has_working_cache=False)

@@ -10,6 +10,7 @@ import asyncio
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -72,10 +73,19 @@ def _ask_float(prompt: str, minimum: float = 0.0) -> float:
         print(f"{C.FAIL}  Введите число > {minimum}.{C.RST}")
 
 
+def _format_last_updated(path: Path) -> str:
+    try:
+        modified_at = datetime.fromtimestamp(path.stat().st_mtime).astimezone()
+    except OSError:
+        return "файл отсутствует"
+    return modified_at.strftime("%d.%m.%Y %H:%M")
+
+
 def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
     print(f"{C.BOLD}Откуда взять прокси?{C.RST}")
     print(f"  {C.BOLD}1{C.RST}  Спарсить свежие из Telegram-канала {C.DIM}(нужен VPN){C.RST}")
-    print(f"  {C.BOLD}2{C.RST}  Скачать из публичного proxies.txt {C.DIM}(VPN не нужен){C.RST}\n")
+    print(f"  {C.BOLD}2{C.RST}  Скачать из публичного proxies.txt {C.DIM}(VPN не нужен){C.RST}")
+    print(f"     {C.DIM}Последнее обновление: {_format_last_updated(PUBLIC_PROXY_LIST_PATH)}{C.RST}\n")
 
     while True:
         choice = input("Источник [1/2]: ").strip()
@@ -190,7 +200,8 @@ async def _run_public_update(config: api.Config) -> None:
         PUBLIC_PROXY_LIST_PATH,
         timeout=config.tcp_timeout,
     )
-    print(f"  {C.OK}Готово: сохранено {saved} прокси в {PUBLIC_PROXY_LIST_PATH}{C.RST}\n")
+    print(f"  {C.OK}Готово: сохранено {saved} прокси в {PUBLIC_PROXY_LIST_PATH}{C.RST}")
+    print(f"  {C.DIM}Последнее обновление: {_format_last_updated(PUBLIC_PROXY_LIST_PATH)}{C.RST}\n")
 
 
 async def _run_check(
