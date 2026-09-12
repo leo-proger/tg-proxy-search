@@ -8,19 +8,10 @@ Telegram.
 
 ## Как выглядит работа программы
 
-Ниже показан основной сценарий: найти три рабочих прокси из публичного списка. Команда запуска зависит от операционной
-системы.
-
-**macOS и Linux:**
+Ниже показан основной сценарий: найти три рабочих прокси из публичного списка.
 
 ```bash
-python3 main.py
-```
-
-**Windows:**
-
-```powershell
-python main.py
+uv run python main.py
 ```
 
 После запуска диалог с программой выглядит одинаково:
@@ -64,44 +55,34 @@ python main.py
 
 ## Установка
 
-Понадобятся:
+Понадобится Python 3.13 или новее.
 
-- Python 3.13 или новее с `pip`.
+Для запуска и установки зависимостей используется `uv`. Команда установки показана ниже.
 
-Скачайте проект, создайте виртуальное окружение и установите зависимости.
+Установите `uv` через `pip`, скачайте проект и установите его зависимости.
 
 **macOS и Linux:**
 
 ```bash
+python3 -m pip install uv
 git clone https://github.com/leo-proger/tg-proxy-search.git
 cd tg-proxy-search
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install .
+uv sync
 ```
 
 **Windows PowerShell:**
 
 ```powershell
+python -m pip install uv
 git clone https://github.com/leo-proger/tg-proxy-search.git
 cd tg-proxy-search
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install .
+uv sync
 ```
 
 Запустите программу с выключенным VPN.
 
-**macOS и Linux:**
-
 ```bash
-python3 main.py
-```
-
-**Windows:**
-
-```powershell
-python main.py
+uv run python main.py
 ```
 
 Для самого простого варианта выберите:
@@ -153,23 +134,8 @@ git pull
 Для чтения канала нужно один раз авторизовать Telethon-сессию. Собственные `API_ID` и `API_HASH` необязательны:
 по умолчанию используются встроенные значения.
 
-**macOS и Linux:**
-
 ```bash
-python3 -c "
-from telethon.sync import TelegramClient
-from tg_proxy_search import Config
-config = Config.from_env()
-with TelegramClient('telethon', config.api_id, config.api_hash) as client:
-    client.start()
-    print('Готово')
-"
-```
-
-**Windows PowerShell:**
-
-```powershell
-python -c "
+uv run python -c "
 from telethon.sync import TelegramClient
 from tg_proxy_search import Config
 config = Config.from_env()
@@ -182,7 +148,7 @@ with TelegramClient('telethon', config.api_id, config.api_hash) as client:
 Введите номер телефона, код из Telegram и пароль двухэтапной аутентификации, если он включён. После успешной
 авторизации в папке проекта появится файл `telethon.session`.
 
-Теперь запустите основную программу: `python3 main.py` на macOS и Linux или `python main.py` на Windows.
+Теперь запустите основную программу: `uv run python main.py`.
 
 Выберите источник `1` и следуйте подсказкам о включении и выключении VPN.
 
@@ -233,16 +199,8 @@ Copy-Item .env.example .env
 
 Если Telegram показывает прокси как рабочий, а программа — как нерабочий, выключите VPN и запустите диагностику.
 
-**macOS и Linux:**
-
 ```bash
-python3 diagnose.py "tg://proxy?server=...&port=...&secret=..."
-```
-
-**Windows:**
-
-```powershell
-python diagnose.py "tg://proxy?server=...&port=...&secret=..."
+uv run python diagnose.py "tg://proxy?server=...&port=...&secret=..."
 ```
 
 Эта команда нужна для поиска проблем и не использует сохранённый результат из кэша.
