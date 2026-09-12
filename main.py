@@ -10,6 +10,7 @@ import asyncio
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -36,6 +37,8 @@ SOURCE_PUBLIC_LIST = 2
 MODE_FIND_TARGET = 1
 MODE_CHECK_ALL = 2
 MODE_RECHECK_CACHE = 3
+MODE_UPDATE_PUBLIC_LIST = 3
+PUBLIC_PROXY_LIST_PATH = Path("proxies.txt")
 
 @dataclass
 class RunSettings:
@@ -89,11 +92,14 @@ def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
             print(f"  {C.BOLD}3{C.RST}  Перепроверить прокси из кэша {C.DIM}(VPN не нужен){C.RST}")
     else:
         print(f"  {C.BOLD}2{C.RST}  Проверить весь публичный список")
+        print(f"  {C.BOLD}3{C.RST}  Обновить локальный proxies.txt")
     print()
 
     valid_modes = {MODE_FIND_TARGET, MODE_CHECK_ALL}
     if source == SOURCE_TELEGRAM and has_working_cache:
         valid_modes.add(MODE_RECHECK_CACHE)
+    if source == SOURCE_PUBLIC_LIST:
+        valid_modes.add(MODE_UPDATE_PUBLIC_LIST)
 
     choices = "/".join(str(mode) for mode in sorted(valid_modes))
     while True:
@@ -175,6 +181,16 @@ async def _run_public_fetch(config: api.Config) -> list[api.Proxy]:
     candidates = await api.download_public_proxies(timeout=config.tcp_timeout)
     print(f"  {C.OK}Кандидатов загружено: {len(candidates)}{C.RST}\n")
     return candidates
+
+
+async def _run_public_update(config: api.Config) -> None:
+    print(f"{C.BOLD}── Обновляется локальный proxies.txt{C.RST}")
+    print(f"{C.DIM}  Источник: {api.PUBLIC_PROXY_LIST_URL}{C.RST}\n")
+    saved = await api.update_local_public_proxies(
+        PUBLIC_PROXY_LIST_PATH,
+        timeout=config.tcp_timeout,
+    )
+    print(f"  {C.OK}Готово: сохранено {saved} прокси в {PUBLIC_PROXY_LIST_PATH}{C.RST}\n")
 
 
 async def _run_check(
@@ -275,6 +291,9 @@ async def _do_recheck(config: api.Config) -> api.CheckResult:
 async def run(settings: RunSettings, *, config: api.Config | None = None) -> None:
     config = config or api.Config.from_env()
 
+    if settings.source == SOURCE_PUBLIC_LIST and settings.mode == MODE_UPDATE_PUBLIC_LIST:
+        await _run_public_update(config)
+        return
     if settings.mode == MODE_RECHECK_CACHE:
         check_result = await _run_recheck(config)
         working = check_result.working

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import io
+import tempfile
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
 import main
@@ -32,6 +34,13 @@ class PromptSettingsTests(unittest.TestCase):
         self.assertEqual(settings.mode, main.MODE_FIND_TARGET)
         self.assertEqual(settings.target_working, 5)
 
+    def test_public_source_can_select_local_list_update(self) -> None:
+        settings, output = self.prompt(["2", "3", "2"], has_working_cache=False)
+
+        self.assertEqual(settings.source, main.SOURCE_PUBLIC_LIST)
+        self.assertEqual(settings.mode, 3)
+        self.assertIn("Обновить локальный proxies.txt", output)
+
     def test_telegram_source_hides_cache_mode_without_working_cache(self) -> None:
         settings, output = self.prompt(["1", "2", "24"], has_working_cache=False)
 
@@ -49,6 +58,38 @@ class PromptSettingsTests(unittest.TestCase):
 
 
 class RunSourceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_update_mode_replaces_local_public_list_without_checking(self) -> None:
+        async def update_local(path: Path, *, timeout: float) -> int:
+            path.write_text("fresh\n", encoding="utf-8")
+            return 1
+
+        async def no_candidates(_config: api.Config) -> list[api.Proxy]:
+            return []
+
+        async def no_results(*_args, **_kwargs) -> api.CheckResult:
+            return api.CheckResult()
+
+        settings = main.RunSettings(
+            source=main.SOURCE_PUBLIC_LIST,
+            mode=3,
+            target_working=None,
+            since_hours=None,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "proxies.txt"
+            with (
+                patch("main.PUBLIC_PROXY_LIST_PATH", path, create=True),
+                patch("main.api.update_local_public_proxies", new=update_local),
+                patch("main._run_public_fetch", new=no_candidates),
+                patch("main._run_check", new=no_results),
+                redirect_stdout(io.StringIO()),
+            ):
+                await main.run(settings, config=api.Config(api_id=1, api_hash="hash"))
+
+            self.assertTrue(path.exists(), "update mode did not create proxies.txt")
+            self.assertEqual(path.read_text(encoding="utf-8"), "fresh\n")
+
     async def test_public_source_downloads_fresh_candidates_and_checks_them(self) -> None:
         public_proxy = api.Proxy("public.example", 443, "secret")
         checked_candidates: list[api.Proxy] = []

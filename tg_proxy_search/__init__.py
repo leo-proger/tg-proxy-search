@@ -12,7 +12,11 @@ from .core import (
     recheck,
 )
 from .models import Proxy
-from .public_source import PUBLIC_PROXY_LIST_URL, download_public_proxies
+from .public_source import (
+    PUBLIC_PROXY_LIST_URL,
+    download_public_proxies,
+    update_local_public_proxies,
+)
 
 __all__ = [
     "Config",
@@ -29,4 +33,5 @@ __all__ = [
     "recheck",
     "PUBLIC_PROXY_LIST_URL",
     "download_public_proxies",
+    "update_local_public_proxies",
 ]
