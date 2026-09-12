@@ -82,7 +82,7 @@ def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
         print(f"{C.FAIL}  Введите 1 или 2.{C.RST}")
 
     print(f"\n{C.BOLD}Что сделать?{C.RST}")
-    print(f"  {C.BOLD}1{C.RST}  Найти N прокси, прошедших проверку")
+    print(f"  {C.BOLD}1{C.RST}  Найти N рабочих прокси")
     if source == SOURCE_TELEGRAM:
         print(f"  {C.BOLD}2{C.RST}  Проверить прокси из постов за последние X часов")
         if has_working_cache:
