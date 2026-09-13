@@ -350,11 +350,22 @@ async def run(settings: RunSettings, *, config: api.Config | None = None) -> Non
         await _auto_add_proxies(working)
 
 
+async def interactive_loop(config: api.Config | None = None) -> None:
+    config = config or api.Config.from_env()
+    while True:
+        settings = prompt_settings(has_working_cache=api.has_working_cache(config))
+        await run(settings, config=config)
+
+        print(f"\n{C.BOLD}Нажмите q, чтобы вернуться в меню, или Enter, чтобы выйти.{C.RST}")
+        choice = input(f"{C.DIM}> {C.RST}").strip().lower()
+        if choice != "q":
+            return
+        print("\n" + "─" * 55 + "\n")
+
+
 if __name__ == "__main__":
     try:
-        config = api.Config.from_env()
-        settings = prompt_settings(has_working_cache=api.has_working_cache(config))
-        asyncio.run(run(settings, config=config))
+        asyncio.run(interactive_loop())
     except KeyboardInterrupt:
         print(f"\n{C.WARN}  Прервано.{C.RST}")
     except RuntimeError as e:

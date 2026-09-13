@@ -186,6 +186,35 @@ class RunSourceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Найдено только 1 из 3", output.getvalue())
 
 
+class InteractiveLoopTests(unittest.IsolatedAsyncioTestCase):
+    async def test_q_returns_to_menu_and_enter_exits(self) -> None:
+        interactive_loop = getattr(main, "interactive_loop", None)
+        self.assertIsNotNone(interactive_loop)
+
+        settings = main.RunSettings(
+            source=main.SOURCE_PUBLIC_LIST,
+            mode=main.MODE_CHECK_ALL,
+            target_working=None,
+            since_hours=None,
+        )
+        completed: list[main.RunSettings] = []
+
+        async def complete_run(selected: main.RunSettings, *, config: api.Config) -> None:
+            completed.append(selected)
+
+        with (
+            patch("main.prompt_settings", side_effect=[settings, settings]),
+            patch("main.api.has_working_cache", return_value=False),
+            patch("main.run", new=complete_run),
+            patch("builtins.input", side_effect=["q", ""]),
+            redirect_stdout(output := io.StringIO()),
+        ):
+            await interactive_loop(api.Config(api_id=1, api_hash="hash"))
+
+        self.assertEqual(completed, [settings, settings])
+        self.assertIn("Нажмите q, чтобы вернуться в меню", output.getvalue())
+
+
 class CheckProgressTests(unittest.IsolatedAsyncioTestCase):
     async def test_check_redraws_progress_until_all_candidates_are_done(self) -> None:
         failed = api.Proxy("failed.example", 443, "failed")
