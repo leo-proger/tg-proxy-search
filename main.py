@@ -10,8 +10,6 @@ import asyncio
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -38,8 +36,6 @@ SOURCE_PUBLIC_LIST = 2
 MODE_FIND_TARGET = 1
 MODE_CHECK_ALL = 2
 MODE_RECHECK_CACHE = 3
-MODE_UPDATE_PUBLIC_LIST = 3
-PUBLIC_PROXY_LIST_PATH = Path("proxies.txt")
 
 @dataclass
 class RunSettings:
@@ -73,14 +69,6 @@ def _ask_float(prompt: str, minimum: float = 0.0) -> float:
         print(f"{C.FAIL}  Введите число > {minimum}.{C.RST}")
 
 
-def _format_last_updated(path: Path) -> str:
-    try:
-        modified_at = datetime.fromtimestamp(path.stat().st_mtime).astimezone()
-    except OSError:
-        return "файл отсутствует"
-    return modified_at.strftime("%d.%m.%Y %H:%M")
-
-
 def _progress_bar(current: int, total: int, *, width: int = 24) -> str:
     safe_total = max(total, 1)
     displayed_current = min(max(current, 0), max(total, 0))
@@ -103,7 +91,7 @@ def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
     print(f"{C.BOLD}Откуда взять прокси?{C.RST}")
     print(f"  {C.BOLD}1{C.RST}  Спарсить свежие из Telegram-канала {C.DIM}(нужен VPN){C.RST}")
     print(f"  {C.BOLD}2{C.RST}  Скачать из публичного proxies.txt {C.DIM}(VPN не нужен){C.RST}")
-    print(f"     {C.DIM}Последнее обновление: {_format_last_updated(PUBLIC_PROXY_LIST_PATH)}{C.RST}\n")
+    print(f"     {C.DIM}Список скачивается заново перед каждой проверкой{C.RST}\n")
 
     while True:
         choice = input("Источник [1/2]: ").strip()
@@ -120,15 +108,11 @@ def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
             print(f"  {C.BOLD}3{C.RST}  Перепроверить прокси из кэша {C.DIM}(VPN не нужен){C.RST}")
     else:
         print(f"  {C.BOLD}2{C.RST}  Проверить весь публичный список")
-        print(f"  {C.BOLD}3{C.RST}  Обновить локальный proxies.txt")
     print()
 
     valid_modes = {MODE_FIND_TARGET, MODE_CHECK_ALL}
     if source == SOURCE_TELEGRAM and has_working_cache:
         valid_modes.add(MODE_RECHECK_CACHE)
-    if source == SOURCE_PUBLIC_LIST:
-        valid_modes.add(MODE_UPDATE_PUBLIC_LIST)
-
     choices = "/".join(str(mode) for mode in sorted(valid_modes))
     while True:
         choice = input(f"Действие [{choices}]: ").strip()
@@ -220,20 +204,6 @@ async def _run_public_fetch(config: api.Config) -> list[api.Proxy]:
     return candidates
 
 
-async def _run_public_update(config: api.Config) -> None:
-    print(f"{C.BOLD}── Обновляется локальный proxies.txt{C.RST}")
-    print(f"{C.DIM}  Источник: {api.PUBLIC_PROXY_LIST_URL}{C.RST}\n")
-    _show_progress("Обновление", 0, 1)
-    saved = await api.update_local_public_proxies(
-        PUBLIC_PROXY_LIST_PATH,
-        timeout=config.tcp_timeout,
-    )
-    _show_progress("Обновление", 1, 1, suffix=f"сохранено: {saved}")
-    print()
-    print(f"  {C.OK}Готово: сохранено {saved} прокси в {PUBLIC_PROXY_LIST_PATH}{C.RST}")
-    print(f"  {C.DIM}Последнее обновление: {_format_last_updated(PUBLIC_PROXY_LIST_PATH)}{C.RST}\n")
-
-
 async def _run_check(
     config: api.Config,
     settings: RunSettings,
@@ -310,9 +280,6 @@ async def _do_recheck(config: api.Config) -> api.CheckResult:
 async def run(settings: RunSettings, *, config: api.Config | None = None) -> None:
     config = config or api.Config.from_env()
 
-    if settings.source == SOURCE_PUBLIC_LIST and settings.mode == MODE_UPDATE_PUBLIC_LIST:
-        await _run_public_update(config)
-        return
     if settings.mode == MODE_RECHECK_CACHE:
         check_result = await _run_recheck(config)
         working = check_result.working

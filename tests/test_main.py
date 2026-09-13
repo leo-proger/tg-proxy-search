@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import io
-import re
-import tempfile
 import unittest
 from contextlib import redirect_stdout
-from pathlib import Path
 from unittest.mock import patch
 
 import main
@@ -46,27 +43,18 @@ class PromptSettingsTests(unittest.TestCase):
         self.assertEqual(settings.mode, main.MODE_FIND_TARGET)
         self.assertEqual(settings.target_working, 5)
 
-    def test_public_source_can_select_local_list_update(self) -> None:
+    def test_public_source_does_not_offer_local_list_update(self) -> None:
         settings, output = self.prompt(["2", "3", "2"], has_working_cache=False)
 
         self.assertEqual(settings.source, main.SOURCE_PUBLIC_LIST)
-        self.assertEqual(settings.mode, 3)
-        self.assertIn("Обновить локальный proxies.txt", output)
+        self.assertEqual(settings.mode, main.MODE_CHECK_ALL)
+        self.assertNotIn("Обновить локальный proxies.txt", output)
+        self.assertIn("Введите 1, 2.", output)
 
-    def test_public_source_shows_local_list_update_time(self) -> None:
+    def test_public_source_explains_that_it_downloads_a_fresh_list(self) -> None:
         _settings, output = self.prompt(["2", "2"], has_working_cache=False)
 
-        self.assertIsNotNone(
-            re.search(r"Последнее обновление: \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}", output)
-        )
-
-    def test_missing_local_list_has_clear_update_status(self) -> None:
-        formatter = getattr(main, "_format_last_updated", None)
-        self.assertIsNotNone(formatter)
-
-        with tempfile.TemporaryDirectory() as directory:
-            missing = Path(directory) / "proxies.txt"
-            self.assertEqual(formatter(missing), "файл отсутствует")
+        self.assertIn("Список скачивается заново перед каждой проверкой", output)
 
     def test_telegram_source_hides_cache_mode_without_working_cache(self) -> None:
         settings, output = self.prompt(["1", "2", "24"], has_working_cache=False)
@@ -85,38 +73,6 @@ class PromptSettingsTests(unittest.TestCase):
 
 
 class RunSourceTests(unittest.IsolatedAsyncioTestCase):
-    async def test_update_mode_replaces_local_public_list_without_checking(self) -> None:
-        async def update_local(path: Path, *, timeout: float) -> int:
-            path.write_text("fresh\n", encoding="utf-8")
-            return 1
-
-        async def no_candidates(_config: api.Config) -> list[api.Proxy]:
-            return []
-
-        async def no_results(*_args, **_kwargs) -> api.CheckResult:
-            return api.CheckResult()
-
-        settings = main.RunSettings(
-            source=main.SOURCE_PUBLIC_LIST,
-            mode=3,
-            target_working=None,
-            since_hours=None,
-        )
-
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "proxies.txt"
-            with (
-                patch("main.PUBLIC_PROXY_LIST_PATH", path, create=True),
-                patch("main.api.update_local_public_proxies", new=update_local),
-                patch("main._run_public_fetch", new=no_candidates),
-                patch("main._run_check", new=no_results),
-                redirect_stdout(io.StringIO()),
-            ):
-                await main.run(settings, config=api.Config(api_id=1, api_hash="hash"))
-
-            self.assertTrue(path.exists(), "update mode did not create proxies.txt")
-            self.assertEqual(path.read_text(encoding="utf-8"), "fresh\n")
-
     async def test_public_source_downloads_fresh_candidates_and_checks_them(self) -> None:
         public_proxy = api.Proxy("public.example", 443, "secret")
         checked_candidates: list[api.Proxy] = []
@@ -281,21 +237,6 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         rendered = output.getvalue()
         self.assertIn("0% 0/1", rendered)
         self.assertIn("100% 1/1", rendered)
-
-    async def test_local_list_update_moves_from_empty_to_full_bar(self) -> None:
-        async def update_local(_path: Path, *, timeout: float) -> int:
-            return 25
-
-        with (
-            patch("main.api.update_local_public_proxies", new=update_local),
-            redirect_stdout(output := io.StringIO()),
-        ):
-            await main._run_public_update(api.Config(api_id=1, api_hash="hash"))
-
-        rendered = output.getvalue()
-        self.assertIn("0% 0/1", rendered)
-        self.assertIn("100% 1/1", rendered)
-        self.assertIn("сохранено: 25", rendered)
 
     async def test_telegram_fetch_shows_scan_limit_progress(self) -> None:
         proxy = api.Proxy("telegram.example", 443, "secret")

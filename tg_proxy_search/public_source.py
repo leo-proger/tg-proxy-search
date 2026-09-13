@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
 from .models import Proxy
 from .parser import proxy_from_url
-from .public_list import validate_proxy_urls, write_proxy_urls
+from .public_list import validate_proxy_urls
 
 PUBLIC_PROXY_LIST_URL = (
     "https://raw.githubusercontent.com/leo-proger/tg-proxy-search/main/proxies.txt"
@@ -41,15 +40,3 @@ async def download_public_proxies(
         return parse_public_proxy_list(text)
     except (OSError, URLError, UnicodeDecodeError, ValueError) as error:
         raise RuntimeError(f"Не удалось скачать публичный список прокси: {error}") from error
-
-
-async def update_local_public_proxies(
-    path: Path,
-    *,
-    timeout: float = 15.0,
-) -> int:
-    proxies = await download_public_proxies(timeout=timeout)
-    urls = [proxy.tg_link() for proxy in proxies]
-    validate_proxy_urls(urls, limit=1000)
-    write_proxy_urls(path, urls)
-    return len(urls)
