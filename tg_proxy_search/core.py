@@ -42,6 +42,7 @@ class ProxyChecked:
     checked: int
     working: int
     total: int
+    latency_ms: int | None = None
 
 
 OnFetchProgress = Callable[[FetchProgress], None]
@@ -64,8 +65,14 @@ class FetchResult:
 
 
 @dataclass
+class CheckedProxy:
+    proxy: Proxy
+    latency_ms: int
+
+
+@dataclass
 class CheckResult:
-    working: list[Proxy] = field(default_factory=list)
+    working: list[CheckedProxy] = field(default_factory=list)
     target: int | None = None
     total: int = 0
     checked: int = 0
@@ -166,14 +173,14 @@ async def check(
 
     asyncio.get_running_loop().set_exception_handler(lambda _l, _c: None)  # подавляем шум Telethon
 
-    working: list[Proxy] = []
+    working: list[CheckedProxy] = []
     checked = 0
     stop = asyncio.Event()
 
     def target_reached() -> bool:
         return target_working is not None and len(working) >= target_working
 
-    def emit(proxy: Proxy, ok: bool) -> None:
+    def emit(proxy: Proxy, ok: bool, latency_ms: int | None = None) -> None:
         nonlocal checked
         checked += 1
         if on_event:
@@ -181,6 +188,7 @@ async def check(
                 proxy=proxy, ok=ok,
                 checked=checked, working=len(working),
                 total=total,
+                latency_ms=latency_ms,
             ))
 
     # Провалы повторяем при низкой конкурентности.
@@ -196,10 +204,10 @@ async def check(
             async with semaphore:
                 if stop.is_set():
                     return
-                ok = await check_proxy(proxy, config.api_id, config.api_hash, config.tcp_timeout)
-                if ok:
-                    working.append(proxy)
-                    emit(proxy, True)
+                latency_ms = await check_proxy(proxy, config.api_id, config.api_hash, config.tcp_timeout)
+                if latency_ms is not None:
+                    working.append(CheckedProxy(proxy, latency_ms))
+                    emit(proxy, True, latency_ms)
                     if target_reached():
                         stop.set()
                 elif defer_failures:
@@ -217,6 +225,7 @@ async def check(
             await run_pass(failures, retry_concurrency, defer_failures=False)
 
     result_working = working[:target_working] if target_working is not None else working
+    result_working.sort(key=lambda result: result.latency_ms)
 
     return CheckResult(
         working=result_working,

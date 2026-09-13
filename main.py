@@ -319,11 +319,11 @@ async def run(settings: RunSettings, *, config: api.Config | None = None) -> Non
         return
 
     print(f"{C.BOLD}── Результат{C.RST}  {C.DIM}(ссылки вставлять в браузер){C.RST}\n")
-    for proxy in working:
-        print(f"   {proxy.tg_link()}")
+    for result in working:
+        print(f"   {result.proxy.tg_link()} ({result.latency_ms}мс)")
 
     if config.auto_add_to_telegram:
-        await _auto_add_proxies(working)
+        await _auto_add_proxies([result.proxy for result in working])
 
 
 async def interactive_loop(config: api.Config | None = None) -> None:

@@ -1,6 +1,7 @@
 from .config import Config
 from .core import (
     CheckResult,
+    CheckedProxy,
     FetchProgress,
     FetchResult,
     OnCheckEvent,
@@ -25,6 +26,7 @@ __all__ = [
     "FetchProgress",
     "FetchResult",
     "ProxyChecked",
+    "CheckedProxy",
     "CheckResult",
     "OnFetchProgress",
     "OnCheckEvent",

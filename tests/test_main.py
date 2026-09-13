@@ -187,7 +187,12 @@ class RunSourceTests(unittest.IsolatedAsyncioTestCase):
             *,
             candidates: list[api.Proxy] | None = None,
         ) -> api.CheckResult:
-            return api.CheckResult(working=[public_proxy], target=3, total=1, checked=1)
+            return api.CheckResult(
+                working=[api.CheckedProxy(public_proxy, 87)],
+                target=3,
+                total=1,
+                checked=1,
+            )
 
         settings = main.RunSettings(
             source=main.SOURCE_PUBLIC_LIST,
@@ -206,6 +211,41 @@ class RunSourceTests(unittest.IsolatedAsyncioTestCase):
             await main.run(settings, config=api.Config(api_id=1, api_hash="hash"))
 
         self.assertIn("Найдено только 1 из 3", output.getvalue())
+
+    async def test_final_result_displays_unmodified_urls_with_latency(self) -> None:
+        fast = api.Proxy("fast.example", 443, "fast-secret")
+        slow = api.Proxy("slow.example", 443, "slow-secret")
+        results = [api.CheckedProxy(fast, 87), api.CheckedProxy(slow, 291)]
+
+        async def local_candidates(_config: api.Config) -> list[api.Proxy]:
+            return [fast, slow]
+
+        async def checked_results(*_args: object, **_kwargs: object) -> api.CheckResult:
+            return api.CheckResult(working=results, total=2, checked=2)
+
+        async def vpn_is_disabled() -> None:
+            return None
+
+        settings = main.RunSettings(
+            source=main.SOURCE_PUBLIC_LIST,
+            mode=main.MODE_FIND_TARGET,
+            target_working=2,
+            since_hours=None,
+        )
+
+        with (
+            patch("main._run_public_fetch", new=local_candidates),
+            patch("main._wait_for_vpn_disabled", new=vpn_is_disabled),
+            patch("main._run_check", new=checked_results),
+            redirect_stdout(output := io.StringIO()),
+        ):
+            await main.run(settings, config=api.Config(api_id=1, api_hash="hash"))
+
+        rendered = output.getvalue()
+        self.assertIn(f"{fast.tg_link()} (87мс)", rendered)
+        self.assertIn(f"{slow.tg_link()} (291мс)", rendered)
+        self.assertLess(rendered.index(fast.tg_link()), rendered.index(slow.tg_link()))
+        self.assertNotIn("мс", fast.tg_link())
 
 
 class InteractiveLoopTests(unittest.IsolatedAsyncioTestCase):

@@ -20,7 +20,7 @@ logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 warnings.filterwarnings("ignore", category=UserWarning, module="telethon")
 
 
-async def check_proxy(proxy: Proxy, api_id: int, api_hash: str, timeout: float) -> bool:
+async def check_proxy(proxy: Proxy, api_id: int, api_hash: str, timeout: float) -> int | None:
     """
     Проверяет прокси полным подключением, выбирая путь по типу секрета.
 
@@ -30,18 +30,23 @@ async def check_proxy(proxy: Proxy, api_id: int, api_hash: str, timeout: float) 
     Такие прокси идут через faketls_check (настоящий fake-TLS handshake); dd/plain
     по-прежнему через MTProto-соединение Telethon.
 
-    Результат False здесь не окончательный: вызывающий код перепроверяет провалы
+    Возвращает latency успешной проверки в миллисекундах. Результат None здесь не окончательный: вызывающий код перепроверяет провалы
     при более низкой конкурентности, так как медленный прокси может истечь по таймауту,
     когда много handshake-ов одновременно конкурируют за полосу.
     """
     try:
         parsed = parse_secret(proxy.secret)
     except Exception:
-        return False
+        return None
+    started_at = time.perf_counter()
     if parsed.kind == FAKETLS:
         sni = parsed.domain or proxy.server
-        return await faketls_check(proxy.server, proxy.port, parsed.key, sni, timeout)
-    return await mtproto_check(proxy.server, proxy.port, parsed.telethon_secret(), api_id, api_hash, timeout)
+        ok = await faketls_check(proxy.server, proxy.port, parsed.key, sni, timeout)
+    else:
+        ok = await mtproto_check(proxy.server, proxy.port, parsed.telethon_secret(), api_id, api_hash, timeout)
+    if not ok:
+        return None
+    return int((time.perf_counter() - started_at) * 1000)
 
 
 async def mtproto_check(

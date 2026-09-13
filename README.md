@@ -48,16 +48,17 @@ uv run python main.py
 
 ── Результат  (ссылки вставлять в браузер)
 
-  tg://proxy?server=proxy-one.example&port=443&secret=...
-  tg://proxy?server=proxy-three.example&port=443&secret=...
-  tg://proxy?server=proxy-four.example&port=443&secret=...
+  tg://proxy?server=proxy-one.example&port=443&secret=... (87мс)
+  tg://proxy?server=proxy-three.example&port=443&secret=... (143мс)
+  tg://proxy?server=proxy-four.example&port=443&secret=... (291мс)
 
 Нажмите Enter, чтобы вернуться в меню, или q, чтобы выйти.
 > [Enter]
 ```
 
 Количество загруженных и проверенных прокси меняется со временем. Если вы запросили три рабочих прокси, программа
-остановит проверку, как только найдёт их.
+остановит проверку, как только найдёт их. Рядом с каждым рабочим прокси показана latency проверки; результаты
+отсортированы от самого быстрого к самому медленному.
 
 После любой операции нажмите Enter, чтобы вернуться в главное меню без перезапуска программы. Нажатие `q` завершает работу.
 
