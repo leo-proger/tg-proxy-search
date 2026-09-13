@@ -102,7 +102,7 @@ def _show_progress(label: str, current: int, total: int, *, suffix: str = "") ->
 def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
     print(f"{C.BOLD}Откуда взять прокси?{C.RST}")
     print(f"  {C.BOLD}1{C.RST}  Спарсить свежие из Telegram-канала {C.DIM}(нужен VPN){C.RST}")
-    print(f"  {C.BOLD}2{C.RST}  Скачать из публичного proxies.txt {C.DIM}(VPN не нужен){C.RST}")
+    print(f"  {C.BOLD}2{C.RST}  Использовать публичный proxies.txt {C.DIM}(VPN не нужен){C.RST}")
     print(f"     {C.DIM}Последнее обновление: {_format_last_updated(PUBLIC_PROXY_LIST_PATH)}{C.RST}\n")
 
     while True:
@@ -119,23 +119,29 @@ def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
         if has_working_cache:
             print(f"  {C.BOLD}3{C.RST}  Перепроверить прокси из кэша {C.DIM}(VPN не нужен){C.RST}")
     else:
-        print(f"  {C.BOLD}2{C.RST}  Проверить весь публичный список")
-        print(f"  {C.BOLD}3{C.RST}  Обновить локальный proxies.txt")
+        print(f"  {C.BOLD}2{C.RST}  Обновить локальный proxies.txt")
     print()
 
-    valid_modes = {MODE_FIND_TARGET, MODE_CHECK_ALL}
-    if source == SOURCE_TELEGRAM and has_working_cache:
-        valid_modes.add(MODE_RECHECK_CACHE)
-    if source == SOURCE_PUBLIC_LIST:
-        valid_modes.add(MODE_UPDATE_PUBLIC_LIST)
+    if source == SOURCE_TELEGRAM:
+        modes_by_choice = {
+            MODE_FIND_TARGET: MODE_FIND_TARGET,
+            MODE_CHECK_ALL: MODE_CHECK_ALL,
+        }
+        if has_working_cache:
+            modes_by_choice[MODE_RECHECK_CACHE] = MODE_RECHECK_CACHE
+    else:
+        modes_by_choice = {
+            MODE_FIND_TARGET: MODE_FIND_TARGET,
+            MODE_CHECK_ALL: MODE_UPDATE_PUBLIC_LIST,
+        }
 
-    choices = "/".join(str(mode) for mode in sorted(valid_modes))
+    choices = "/".join(str(choice) for choice in sorted(modes_by_choice))
     while True:
         choice = input(f"Действие [{choices}]: ").strip()
-        if choice.isdigit() and int(choice) in valid_modes:
-            mode = int(choice)
+        if choice.isdigit() and int(choice) in modes_by_choice:
+            mode = modes_by_choice[int(choice)]
             break
-        print(f"{C.FAIL}  Введите {', '.join(str(mode) for mode in sorted(valid_modes))}.{C.RST}")
+        print(f"{C.FAIL}  Введите {', '.join(str(choice) for choice in sorted(modes_by_choice))}.{C.RST}")
 
     target_working: int | None = None
     since_hours: float | None = None
@@ -211,11 +217,11 @@ async def _run_fetch(config: api.Config, settings: RunSettings) -> api.FetchResu
 
 
 async def _run_public_fetch(config: api.Config) -> list[api.Proxy]:
-    print(f"{C.BOLD}── Шаг 1: скачивается публичный список{C.RST}")
-    print(f"{C.DIM}  Источник: {api.PUBLIC_PROXY_LIST_URL}{C.RST}\n")
-    _show_progress("Скачивание", 0, 1)
-    candidates = await api.download_public_proxies(timeout=config.tcp_timeout)
-    _show_progress("Скачивание", 1, 1, suffix=f"загружено: {len(candidates)}")
+    print(f"{C.BOLD}── Шаг 1: загружается локальный публичный список{C.RST}")
+    print(f"{C.DIM}  Источник: {PUBLIC_PROXY_LIST_PATH}{C.RST}\n")
+    _show_progress("Загрузка", 0, 1)
+    candidates = api.load_local_public_proxies(PUBLIC_PROXY_LIST_PATH)
+    _show_progress("Загрузка", 1, 1, suffix=f"загружено: {len(candidates)}")
     print("\n")
     return candidates
 
@@ -247,6 +253,13 @@ async def _run_check(
     print(f"{C.DIM}  Цель: {target_label}  |  таймаут: {config.tcp_timeout:g}с{C.RST}\n")
 
     return await _do_check(config, target_working=target, candidates=candidates)
+
+
+async def _wait_for_vpn_disabled() -> None:
+    print("─" * 55)
+    print(f"{C.WARN}Выключите VPN и нажмите Enter для начала проверки...{C.RST}")
+    await asyncio.get_running_loop().run_in_executor(None, input)
+    print()
 
 
 async def _run_recheck(config: api.Config) -> api.CheckResult:
@@ -310,6 +323,8 @@ async def _do_recheck(config: api.Config) -> api.CheckResult:
 async def run(settings: RunSettings, *, config: api.Config | None = None) -> None:
     config = config or api.Config.from_env()
 
+    if settings.source == SOURCE_PUBLIC_LIST and settings.mode == MODE_CHECK_ALL:
+        raise ValueError("Режим проверки всего списка недоступен для публичного списка")
     if settings.source == SOURCE_PUBLIC_LIST and settings.mode == MODE_UPDATE_PUBLIC_LIST:
         await _run_public_update(config)
         return
@@ -318,6 +333,7 @@ async def run(settings: RunSettings, *, config: api.Config | None = None) -> Non
         working = check_result.working
     elif settings.source == SOURCE_PUBLIC_LIST:
         candidates = await _run_public_fetch(config)
+        await _wait_for_vpn_disabled()
         check_result = await _run_check(config, settings, candidates=candidates)
         working = check_result.working
     else:
@@ -325,10 +341,7 @@ async def run(settings: RunSettings, *, config: api.Config | None = None) -> Non
         if fetch_result.found == 0:
             return
 
-        print("─" * 55)
-        print(f"{C.WARN}Выключите VPN и нажмите Enter для начала проверки...{C.RST}")
-        await asyncio.get_running_loop().run_in_executor(None, input)
-        print()
+        await _wait_for_vpn_disabled()
 
         check_result = await _run_check(config, settings)
         working = check_result.working

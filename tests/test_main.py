@@ -30,13 +30,13 @@ class PromptSettingsTests(unittest.TestCase):
             settings = main.prompt_settings(has_working_cache=has_working_cache)
         return settings, output.getvalue()
 
-    def test_public_source_never_shows_cache_mode(self) -> None:
+    def test_public_source_rejects_check_all_and_offers_only_find_or_update(self) -> None:
         settings, output = self.prompt(["2", "2"], has_working_cache=True)
 
         self.assertEqual(settings.source, main.SOURCE_PUBLIC_LIST)
-        self.assertEqual(settings.mode, main.MODE_CHECK_ALL)
-        self.assertIsNone(settings.target_working)
-        self.assertIsNone(settings.since_hours)
+        self.assertEqual(settings.mode, main.MODE_UPDATE_PUBLIC_LIST)
+        self.assertNotEqual(settings.mode, main.MODE_CHECK_ALL)
+        self.assertNotIn("Проверить весь публичный список", output)
         self.assertNotIn("Перепроверить", output)
 
     def test_public_source_can_limit_number_of_successful_proxies(self) -> None:
@@ -47,18 +47,17 @@ class PromptSettingsTests(unittest.TestCase):
         self.assertEqual(settings.target_working, 5)
 
     def test_public_source_can_select_local_list_update(self) -> None:
-        settings, output = self.prompt(["2", "3", "2"], has_working_cache=False)
+        settings, output = self.prompt(["2", "2"], has_working_cache=False)
 
         self.assertEqual(settings.source, main.SOURCE_PUBLIC_LIST)
-        self.assertEqual(settings.mode, 3)
+        self.assertEqual(settings.mode, main.MODE_UPDATE_PUBLIC_LIST)
         self.assertIn("Обновить локальный proxies.txt", output)
 
-    def test_public_source_shows_local_list_update_time(self) -> None:
-        _settings, output = self.prompt(["2", "2"], has_working_cache=False)
+    def test_public_source_describes_the_local_list(self) -> None:
+        _settings, output = self.prompt(["2", "1", "1"], has_working_cache=False)
 
-        self.assertIsNotNone(
-            re.search(r"Последнее обновление: \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}", output)
-        )
+        self.assertIn("Использовать публичный proxies.txt", output)
+        self.assertNotIn("Скачать из публичного proxies.txt", output)
 
     def test_missing_local_list_has_clear_update_status(self) -> None:
         formatter = getattr(main, "_format_last_updated", None)
@@ -85,6 +84,20 @@ class PromptSettingsTests(unittest.TestCase):
 
 
 class RunSourceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_public_source_rejects_check_all_mode_even_when_constructed_directly(self) -> None:
+        settings = main.RunSettings(
+            source=main.SOURCE_PUBLIC_LIST,
+            mode=main.MODE_CHECK_ALL,
+            target_working=None,
+            since_hours=None,
+        )
+
+        with (
+            patch("main._run_public_fetch", side_effect=AssertionError("public fetch must not run")),
+            self.assertRaisesRegex(ValueError, "недоступен для публичного списка"),
+        ):
+            await main.run(settings, config=api.Config(api_id=1, api_hash="hash"))
+
     async def test_update_mode_replaces_local_public_list_without_checking(self) -> None:
         async def update_local(path: Path, *, timeout: float) -> int:
             path.write_text("fresh\n", encoding="utf-8")
@@ -117,42 +130,66 @@ class RunSourceTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(path.exists(), "update mode did not create proxies.txt")
             self.assertEqual(path.read_text(encoding="utf-8"), "fresh\n")
 
-    async def test_public_source_downloads_fresh_candidates_and_checks_them(self) -> None:
-        public_proxy = api.Proxy("public.example", 443, "secret")
-        checked_candidates: list[api.Proxy] = []
+    async def test_public_source_loads_candidates_from_local_file_without_download(self) -> None:
+        local_proxy = api.Proxy("local.example", 443, "local-secret")
 
-        async def download_public(_config: api.Config) -> list[api.Proxy]:
+        async def reject_remote_download(*_args, **_kwargs) -> list[api.Proxy]:
+            raise AssertionError("ordinary public checks must not download proxies.txt")
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "proxies.txt"
+            original_contents = f"{local_proxy.tg_link()}\n"
+            path.write_text(original_contents, encoding="utf-8")
+            with (
+                patch("main.PUBLIC_PROXY_LIST_PATH", path),
+                patch("main.api.download_public_proxies", new=reject_remote_download),
+                redirect_stdout(io.StringIO()),
+            ):
+                candidates = await main._run_public_fetch(api.Config(api_id=1, api_hash="hash"))
+
+            self.assertEqual(path.read_text(encoding="utf-8"), original_contents)
+
+        self.assertEqual(candidates, [local_proxy])
+
+    async def test_public_source_waits_for_vpn_to_be_disabled_before_checking(self) -> None:
+        public_proxy = api.Proxy("local.example", 443, "local-secret")
+        confirmed = False
+
+        async def local_candidates(_config: api.Config) -> list[api.Proxy]:
             return [public_proxy]
 
-        async def reject_telegram_fetch(*_args, **_kwargs):
-            raise AssertionError("Telegram fetch must not run for the public source")
-
-        async def check_candidates(
+        async def check_after_confirmation(
             _config: api.Config,
             _settings: main.RunSettings,
             *,
             candidates: list[api.Proxy] | None = None,
         ) -> api.CheckResult:
-            checked_candidates.extend(candidates or [])
-            return api.CheckResult(working=[], total=len(candidates or []), checked=len(candidates or []))
+            self.assertTrue(confirmed, "checking started before VPN confirmation")
+            self.assertEqual(candidates, [public_proxy])
+            return api.CheckResult(working=[], total=1, checked=1)
+
+        def confirm_vpn_disabled(*_args: object, **_kwargs: object) -> str:
+            nonlocal confirmed
+            confirmed = True
+            return ""
 
         settings = main.RunSettings(
             source=main.SOURCE_PUBLIC_LIST,
-            mode=main.MODE_CHECK_ALL,
-            target_working=None,
+            mode=main.MODE_FIND_TARGET,
+            target_working=1,
             since_hours=None,
         )
-        config = api.Config(api_id=1, api_hash="hash")
 
         with (
-            patch("main._run_public_fetch", new=download_public),
-            patch("main._run_fetch", new=reject_telegram_fetch),
-            patch("main._run_check", new=check_candidates),
-            redirect_stdout(io.StringIO()),
+            patch("main._run_public_fetch", new=local_candidates),
+            patch("main._run_check", new=check_after_confirmation),
+            patch("builtins.input", new=confirm_vpn_disabled),
+            redirect_stdout(output := io.StringIO()),
         ):
-            await main.run(settings, config=config)
+            await main.run(settings, config=api.Config(api_id=1, api_hash="hash"))
 
-        self.assertEqual(checked_candidates, [public_proxy])
+        self.assertTrue(confirmed)
+        self.assertIn("Выключите VPN и нажмите Enter для начала проверки", output.getvalue())
 
     async def test_public_source_reports_when_target_is_not_met(self) -> None:
         public_proxy = api.Proxy("public.example", 443, "secret")
@@ -179,6 +216,7 @@ class RunSourceTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch("main._run_public_fetch", new=download_public),
             patch("main._run_check", new=check_candidates),
+            patch("builtins.input", return_value=""),
             redirect_stdout(output),
         ):
             await main.run(settings, config=api.Config(api_id=1, api_hash="hash"))
@@ -269,14 +307,17 @@ class CheckProgressTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
-    async def test_public_download_moves_from_empty_to_full_bar(self) -> None:
+    async def test_local_public_list_load_moves_from_empty_to_full_bar(self) -> None:
         proxy = api.Proxy("public.example", 443, "secret")
 
-        with (
-            patch("main.api.download_public_proxies", return_value=[proxy]),
-            redirect_stdout(output := io.StringIO()),
-        ):
-            await main._run_public_fetch(api.Config(api_id=1, api_hash="hash"))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "proxies.txt"
+            path.write_text(f"{proxy.tg_link()}\n", encoding="utf-8")
+            with (
+                patch("main.PUBLIC_PROXY_LIST_PATH", path),
+                redirect_stdout(output := io.StringIO()),
+            ):
+                await main._run_public_fetch(api.Config(api_id=1, api_hash="hash"))
 
         rendered = output.getvalue()
         self.assertIn("0% 0/1", rendered)

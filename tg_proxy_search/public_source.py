@@ -27,6 +27,13 @@ def parse_public_proxy_list(text: str) -> list[Proxy]:
     return proxies
 
 
+def load_local_public_proxies(path: Path) -> list[Proxy]:
+    try:
+        return parse_public_proxy_list(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as error:
+        raise RuntimeError(f"Не удалось загрузить локальный список прокси: {error}") from error
+
+
 def _download_text(url: str, timeout: float) -> str:
     with urlopen(url, timeout=timeout) as response:
         return response.read().decode("utf-8")
