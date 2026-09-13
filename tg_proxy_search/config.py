@@ -12,7 +12,7 @@ class Config:
     """
     api_id: int
     api_hash: str
-    tcp_timeout: float = 15.0
+    tcp_timeout: float = 5.0
     proxy_check_concurrency: int = 8
     # Ограничение на кол-во сообщений канала за один запуск парсинга.
     max_scan_messages: int = 1000
