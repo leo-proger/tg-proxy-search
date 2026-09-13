@@ -356,9 +356,9 @@ async def interactive_loop(config: api.Config | None = None) -> None:
         settings = prompt_settings(has_working_cache=api.has_working_cache(config))
         await run(settings, config=config)
 
-        print(f"\n{C.BOLD}Нажмите q, чтобы вернуться в меню, или Enter, чтобы выйти.{C.RST}")
+        print(f"\n{C.BOLD}Нажмите Enter, чтобы вернуться в меню, или q, чтобы выйти.{C.RST}")
         choice = input(f"{C.DIM}> {C.RST}").strip().lower()
-        if choice != "q":
+        if choice == "q":
             return
         print("\n" + "─" * 55 + "\n")
 

@@ -187,7 +187,7 @@ class RunSourceTests(unittest.IsolatedAsyncioTestCase):
 
 
 class InteractiveLoopTests(unittest.IsolatedAsyncioTestCase):
-    async def test_q_returns_to_menu_and_enter_exits(self) -> None:
+    async def test_enter_returns_to_menu_and_q_exits(self) -> None:
         interactive_loop = getattr(main, "interactive_loop", None)
         self.assertIsNotNone(interactive_loop)
 
@@ -206,13 +206,13 @@ class InteractiveLoopTests(unittest.IsolatedAsyncioTestCase):
             patch("main.prompt_settings", side_effect=[settings, settings]),
             patch("main.api.has_working_cache", return_value=False),
             patch("main.run", new=complete_run),
-            patch("builtins.input", side_effect=["q", ""]),
+            patch("builtins.input", side_effect=["", "q"]),
             redirect_stdout(output := io.StringIO()),
         ):
             await interactive_loop(api.Config(api_id=1, api_hash="hash"))
 
         self.assertEqual(completed, [settings, settings])
-        self.assertIn("Нажмите q, чтобы вернуться в меню", output.getvalue())
+        self.assertIn("Нажмите Enter, чтобы вернуться в меню", output.getvalue())
 
 
 class CheckProgressTests(unittest.IsolatedAsyncioTestCase):
