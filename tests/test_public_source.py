@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from urllib.error import URLError
 
+from tg_proxy_search import public_source
 from tg_proxy_search.public_source import (
     PUBLIC_PROXY_LIST_URL,
     download_public_proxies,
@@ -72,6 +75,32 @@ class DownloadPublicProxiesTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "Не удалось скачать публичный список"):
                 await download_public_proxies()
+
+
+class UpdateLocalPublicProxiesTests(unittest.IsolatedAsyncioTestCase):
+    async def test_downloaded_list_replaces_local_file(self) -> None:
+        updater = getattr(public_source, "update_local_public_proxies", None)
+        self.assertIsNotNone(updater)
+
+        downloaded = [
+            public_source.Proxy("fresh.example", 443, "fresh-secret"),
+            public_source.Proxy("second.example", 8443, "second-secret"),
+        ]
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "proxies.txt"
+            output.write_text("stale\n", encoding="utf-8")
+
+            with patch.object(public_source, "download_public_proxies", return_value=downloaded):
+                saved = await updater(output, timeout=7.5)
+
+            self.assertEqual(saved, 2)
+            self.assertEqual(
+                output.read_text(encoding="utf-8").splitlines(),
+                [
+                    "tg://proxy?server=fresh.example&port=443&secret=fresh-secret",
+                    "tg://proxy?server=second.example&port=8443&secret=second-secret",
+                ],
+            )
 
 
 if __name__ == "__main__":
