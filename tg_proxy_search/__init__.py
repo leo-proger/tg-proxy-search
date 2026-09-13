@@ -8,8 +8,6 @@ from .core import (
     ProxyChecked,
     check,
     fetch,
-    has_working_cache,
-    recheck,
 )
 from .models import Proxy
 from .public_source import (
@@ -24,14 +22,12 @@ __all__ = [
     "Proxy",
     "fetch",
     "check",
-    "has_working_cache",
     "FetchProgress",
     "FetchResult",
     "ProxyChecked",
     "CheckResult",
     "OnFetchProgress",
     "OnCheckEvent",
-    "recheck",
     "PUBLIC_PROXY_LIST_URL",
     "download_public_proxies",
     "load_local_public_proxies",

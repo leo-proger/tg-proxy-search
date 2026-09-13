@@ -8,7 +8,6 @@ from typing import Callable
 
 from telethon import TelegramClient
 
-from .cache import ProxyCache
 from .checker import check_proxy
 from .config import Config
 from .models import Proxy
@@ -43,7 +42,6 @@ class ProxyChecked:
     checked: int
     working: int
     total: int
-    from_cache: bool = False
 
 
 OnFetchProgress = Callable[[FetchProgress], None]
@@ -78,19 +76,6 @@ class CheckResult:
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
-
-def has_working_cache(config: Config) -> bool:
-    cache = ProxyCache(
-        config.check_cache_file,
-        config.proxy_working_recheck_hours,
-        config.proxy_failed_recheck_hours,
-    )
-    try:
-        cache.load()
-    except (OSError, json.JSONDecodeError, TypeError, ValueError):
-        return False
-    return bool(cache.working_proxies())
-
 
 async def fetch(
     config: Config,
@@ -143,7 +128,7 @@ async def fetch(
     # Новые посты первыми; прокси без даты идут в конец.
     candidates.sort(key=_posted_sort_key, reverse=True)
 
-    with open(config.cache_file, "w") as f:
+    with open(config.candidates_file, "w") as f:
         json.dump([asdict(p) for p in candidates], f, indent=2)
 
     limit_reached = scanned >= config.max_scan_messages and not reached_cutoff
@@ -169,28 +154,15 @@ async def check(
     - target_working=N    : остановиться, как только найдено N рабочих прокси.
     - target_working=None : проверить всех кандидатов.
 
-    Производительность: непроверенные прокси тестируются конкурентно,
+    Производительность: прокси тестируются конкурентно,
     ограничено config.proxy_check_concurrency.
-
-    Поведение кэша (рабочий имеет приоритет, см. ProxyCache.record):
-    - Свежее попадание (TTL не истёк)    : возвращается сразу, без повторной проверки.
-    - TTL истёк, новая проверка успешна  : сохраняется как рабочий.
-    - TTL истёк, был рабочим, провал     : остаётся рабочим (без понижения).
-    - TTL истёк, был нерабочим, провал   : подтверждён мёртвым, удаляется.
-    - Новый прокси (нет в кэше)          : тестируется, результат сохраняется.
     """
     if candidates is None:
-        with open(config.cache_file) as f:
+        with open(config.candidates_file) as f:
             raw: list[dict[str, str | int]] = json.load(f)
         candidates = [Proxy.from_dict(d) for d in raw]
 
     total = len(candidates)
-    cache = ProxyCache(
-        config.check_cache_file,
-        config.proxy_working_recheck_hours,
-        config.proxy_failed_recheck_hours,
-    )
-    cache.load()
 
     asyncio.get_running_loop().set_exception_handler(lambda _l, _c: None)  # подавляем шум Telethon
 
@@ -201,30 +173,17 @@ async def check(
     def target_reached() -> bool:
         return target_working is not None and len(working) >= target_working
 
-    def emit(proxy: Proxy, ok: bool, *, from_cache: bool = False) -> None:
+    def emit(proxy: Proxy, ok: bool) -> None:
         nonlocal checked
         checked += 1
         if on_event:
             on_event(ProxyChecked(
                 proxy=proxy, ok=ok,
                 checked=checked, working=len(working),
-                total=total, from_cache=from_cache,
+                total=total,
             ))
 
-    # Фаза 1: свежие попадания из кэша отдаём в порядке очереди.
-    to_test: list[Proxy] = []
-    for proxy in candidates:
-        if target_reached():
-            break
-        cached_result = cache.get(proxy)
-        if cached_result is not None:
-            if cached_result:
-                working.append(proxy)
-            emit(proxy, cached_result, from_cache=True)
-        else:
-            to_test.append(proxy)
-
-    # Фаза 2: тестируем конкурентно; провалы повторяем при низкой конкурентности.
+    # Провалы повторяем при низкой конкурентности.
     # Высоколатентный прокси может истечь по таймауту, когда много handshake-ов
     # одновременно конкурируют за полосу. Провалы получают вторую, более спокойную попытку.
     async def run_pass(proxies: list[Proxy], concurrency: int, *, defer_failures: bool) -> list[Proxy]:
@@ -239,7 +198,6 @@ async def check(
                     return
                 ok = await check_proxy(proxy, config.api_id, config.api_hash, config.tcp_timeout)
                 if ok:
-                    cache.record(proxy, True)
                     working.append(proxy)
                     emit(proxy, True)
                     if target_reached():
@@ -247,22 +205,16 @@ async def check(
                 elif defer_failures:
                     failures.append(proxy)  # отложить на вторую попытку перед окончательным решением
                 else:
-                    # Рабочий имеет приоритет: провальная перепроверка не понижает
-                    # статус заведомо рабочего прокси, а подтверждённо мёртвый удаляется.
-                    cache.record(proxy, False)
                     emit(proxy, False)
 
         await asyncio.gather(*[asyncio.create_task(test_one(p)) for p in proxies], return_exceptions=True)
         return failures
 
-    try:
-        if to_test and not target_reached():
-            failures = await run_pass(to_test, config.proxy_check_concurrency, defer_failures=True)
-            if failures and not stop.is_set():
-                retry_concurrency = max(2, config.proxy_check_concurrency // 4)
-                await run_pass(failures, retry_concurrency, defer_failures=False)
-    finally:
-        cache.save()
+    if candidates and not target_reached():
+        failures = await run_pass(candidates, config.proxy_check_concurrency, defer_failures=True)
+        if failures and not stop.is_set():
+            retry_concurrency = max(2, config.proxy_check_concurrency // 4)
+            await run_pass(failures, retry_concurrency, defer_failures=False)
 
     result_working = working[:target_working] if target_working is not None else working
 
@@ -272,35 +224,3 @@ async def check(
         total=total,
         checked=checked,
     )
-
-
-async def recheck(
-    config: Config,
-    *,
-    on_event: OnCheckEvent | None = None,
-) -> CheckResult:
-    """
-    Перепроверяет все прокси, хранящиеся в кэше как рабочие, независимо от TTL.
-    Фаза парсинга не нужна (VPN не требуется).
-
-    Полезно, когда ранее рабочие прокси упали и нужно быстрое обновление
-    без повторного парсинга канала.
-    """
-    cache = ProxyCache(
-        config.check_cache_file,
-        config.proxy_working_recheck_hours,
-        config.proxy_failed_recheck_hours,
-    )
-    cache.load()
-
-    candidates = cache.working_proxies()
-
-    if not candidates:
-        return CheckResult()
-
-    # Принудительно удаляем их, чтобы check() реально перепроверил,
-    # а не вернул устаревшие попадания из кэша.
-    cache.clear_working()
-    cache.save()
-
-    return await check(config, candidates=candidates, on_event=on_event)

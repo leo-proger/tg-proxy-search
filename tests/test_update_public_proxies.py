@@ -11,11 +11,11 @@ from tg_proxy_search.update_public_proxies import update_public_proxies
 
 
 class UpdatePublicProxiesTests(unittest.IsolatedAsyncioTestCase):
-    async def test_successful_fetch_updates_txt_without_touching_local_json(self) -> None:
+    async def test_successful_fetch_updates_txt_without_touching_local_candidates(self) -> None:
         captured: dict[str, object] = {}
 
         async def fake_fetch(config, *, session_file, **_kwargs):
-            captured["cache_file"] = config.cache_file
+            captured["candidates_file"] = config.candidates_file
             captured["max_scan_messages"] = config.max_scan_messages
             captured["session_file"] = session_file
             return FetchResult(
@@ -42,8 +42,8 @@ class UpdatePublicProxiesTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(captured["session_file"], "/tmp/test.session")
         self.assertEqual(captured["max_scan_messages"], 1000)
-        self.assertNotEqual(captured["cache_file"], "proxies.json")
-        self.assertFalse(Path(str(captured["cache_file"])).exists())
+        self.assertNotEqual(captured["candidates_file"], "proxies.json")
+        self.assertFalse(Path(str(captured["candidates_file"])).exists())
 
     async def test_empty_fetch_preserves_existing_public_list(self) -> None:
         async def empty_fetch(_config, *, session_file, **_kwargs):

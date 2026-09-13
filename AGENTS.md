@@ -14,7 +14,7 @@ uv run python diagnose.py "tg://proxy?..."  # диагностика одног�
 Два этапа работы, которые намеренно разделены:
 
 1. **Fetch** (VPN включён) — парсинг сообщений Telegram через Telethon, запись кандидатов в `proxies.json`
-2. **Check** (VPN выключен) — проверка прокси с реального IP, результаты кэшируются в `proxy_cache.json`
+2. **Check** (VPN выключен) — проверка прокси с реального IP
 
 Разделение намеренное: Telegram-канал доступен только через VPN, а проверять прокси нужно с реального IP пользователя.
 
@@ -25,8 +25,7 @@ uv run python diagnose.py "tg://proxy?..."  # диагностика одног�
   - `faketls_check` — для `ee`-прокси: отправляет полноценный 517-байтовый tdlib/Chrome-подобный ClientHello с HMAC-SHA256 дайджестом, верифицирует ответный дайджест сервера.
   - `mtproto_check` — для `dd`/plain: Telethon с `ConnectionTcpMTProxyRandomizedIntermediate`.
   - `check_proxy` — диспетчер, выбирает путь по типу секрета.
-- `tg_proxy_search/core.py` — оркестрация: `fetch()` и `check()` с кэшем и событиями прогресса.
-- `tg_proxy_search/cache.py` — `ProxyCache`: TTL-кэш (working 48ч, failed 24ч), "working wins" при повторной проверке.
+- `tg_proxy_search/core.py` — оркестрация: `fetch()` и `check()` с событиями прогресса.
 - `tg_proxy_search/parser.py` — извлечение прокси из сообщений (кнопки → текст fallback).
 - `tg_proxy_search/models.py` — `Proxy` (frozen dataclass, `posted_at` исключён из hash/eq).
 - `tg_proxy_search/public_list.py` — объединение, валидация и атомарная запись публичного списка URL.
@@ -56,8 +55,6 @@ Telethon **не умеет** fake-TLS (`ee`-секреты): он срезает
 | `TCP_TIMEOUT` | таймаут проверки в секундах (default 15) |
 | `PROXY_CHECK_CONCURRENCY` | параллельность (default 8) |
 | `MAX_SCAN_MESSAGES` | лимит сообщений при fetch (default 1000) |
-| `PROXY_WORKING_RECHECK_HOURS` | TTL рабочего прокси в кэше (default 48) |
-| `PROXY_FAILED_RECHECK_HOURS` | TTL мёртвого прокси в кэше (default 24) |
 
 ## Диагностика
 
@@ -74,4 +71,4 @@ PYTHONPATH=. python /tmp/loopback_test.py   # fake-TLS client vs mock server
 PYTHONPATH=. python /tmp/mtg_loopback.py    # новый hello vs mtg-faithful validation
 ```
 
-Перед проверкой чекера не полагайтесь на сохранённые результаты из `proxy_cache.json`: старые `ok:false` могут отдаваться из кэша. Очищайте кэш только когда это допустимо для текущей задачи.
+Каждая проверка чекера выполняет сетевой handshake заново; результаты прошлых запусков не используются.

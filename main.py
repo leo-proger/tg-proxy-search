@@ -37,7 +37,6 @@ SOURCE_PUBLIC_LIST = 2
 
 MODE_FIND_TARGET = 1
 MODE_CHECK_ALL = 2
-MODE_RECHECK_CACHE = 3
 MODE_UPDATE_PUBLIC_LIST = 3
 PUBLIC_PROXY_LIST_PATH = Path("proxies.txt")
 
@@ -99,7 +98,7 @@ def _show_progress(label: str, current: int, total: int, *, suffix: str = "") ->
     )
 
 
-def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
+def prompt_settings() -> RunSettings:
     print(f"{C.BOLD}Откуда взять прокси?{C.RST}")
     print(f"  {C.BOLD}1{C.RST}  Спарсить свежие из Telegram-канала {C.DIM}(нужен VPN){C.RST}")
     print(f"  {C.BOLD}2{C.RST}  Использовать публичный proxies.txt {C.DIM}(VPN не нужен){C.RST}")
@@ -116,8 +115,6 @@ def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
     print(f"  {C.BOLD}1{C.RST}  Найти N рабочих прокси")
     if source == SOURCE_TELEGRAM:
         print(f"  {C.BOLD}2{C.RST}  Проверить прокси из постов за последние X часов")
-        if has_working_cache:
-            print(f"  {C.BOLD}3{C.RST}  Перепроверить прокси из кэша {C.DIM}(VPN не нужен){C.RST}")
     else:
         print(f"  {C.BOLD}2{C.RST}  Обновить локальный proxies.txt")
     print()
@@ -127,8 +124,6 @@ def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
             MODE_FIND_TARGET: MODE_FIND_TARGET,
             MODE_CHECK_ALL: MODE_CHECK_ALL,
         }
-        if has_working_cache:
-            modes_by_choice[MODE_RECHECK_CACHE] = MODE_RECHECK_CACHE
     else:
         modes_by_choice = {
             MODE_FIND_TARGET: MODE_FIND_TARGET,
@@ -262,13 +257,6 @@ async def _wait_for_vpn_disabled() -> None:
     print()
 
 
-async def _run_recheck(config: api.Config) -> api.CheckResult:
-    print(f"{C.BOLD}── Перепроверяется кэш{C.RST}")
-    print(f"{C.DIM}  VPN не нужен — проверка идёт с реального IP{C.RST}\n")
-
-    return await _do_recheck(config)
-
-
 async def _do_check(
     config: api.Config,
     *,
@@ -276,13 +264,12 @@ async def _do_check(
     candidates: list[api.Proxy] | None = None,
 ) -> api.CheckResult:
     def on_event(event: api.ProxyChecked) -> None:
-        cached = "  кэш" if event.from_cache else ""
         if target_working is None:
             current, total = event.checked, event.total
-            suffix = f"рабочих: {event.working}{cached}"
+            suffix = f"рабочих: {event.working}"
         else:
             current, total = event.working, target_working
-            suffix = f"проверено: {event.checked}/{event.total}{cached}"
+            suffix = f"проверено: {event.checked}/{event.total}"
         _show_progress(
             "Проверка",
             current,
@@ -298,26 +285,6 @@ async def _do_check(
     return result
 
 
-async def _do_recheck(config: api.Config) -> api.CheckResult:
-    def on_event(event: api.ProxyChecked) -> None:
-        _show_progress(
-            "Перепроверка",
-            event.checked,
-            event.total,
-            suffix=f"рабочих: {event.working}",
-        )
-
-    result = await api.recheck(config, on_event=on_event)
-
-    if result.checked:
-        print()
-    if result.total == 0:
-        print(f"{C.WARN}  Кэш пустой — сначала запустите режим 1 или 2.{C.RST}\n")
-    else:
-        print(f"\n  {C.OK}Рабочих: {len(result.working)}{C.RST}  {C.DIM}(проверено {result.checked}/{result.total}){C.RST}\n")
-    return result
-
-
 # ── Оркестрация ───────────────────────────────────────────────────────────────
 
 async def run(settings: RunSettings, *, config: api.Config | None = None) -> None:
@@ -328,10 +295,7 @@ async def run(settings: RunSettings, *, config: api.Config | None = None) -> Non
     if settings.source == SOURCE_PUBLIC_LIST and settings.mode == MODE_UPDATE_PUBLIC_LIST:
         await _run_public_update(config)
         return
-    if settings.mode == MODE_RECHECK_CACHE:
-        check_result = await _run_recheck(config)
-        working = check_result.working
-    elif settings.source == SOURCE_PUBLIC_LIST:
+    if settings.source == SOURCE_PUBLIC_LIST:
         candidates = await _run_public_fetch(config)
         await _wait_for_vpn_disabled()
         check_result = await _run_check(config, settings, candidates=candidates)
@@ -351,8 +315,7 @@ async def run(settings: RunSettings, *, config: api.Config | None = None) -> Non
               f"кандидаты закончились.{C.RST}\n")
 
     if not working:
-        if settings.mode != 3:
-            print(f"{C.WARN}  Рабочих прокси не найдено. Попробуйте расширить диапазон или увеличить N.{C.RST}")
+        print(f"{C.WARN}  Рабочих прокси не найдено. Попробуйте расширить диапазон или увеличить N.{C.RST}")
         return
 
     print(f"{C.BOLD}── Результат{C.RST}  {C.DIM}(ссылки вставлять в браузер){C.RST}\n")
@@ -366,7 +329,7 @@ async def run(settings: RunSettings, *, config: api.Config | None = None) -> Non
 async def interactive_loop(config: api.Config | None = None) -> None:
     config = config or api.Config.from_env()
     while True:
-        settings = prompt_settings(has_working_cache=api.has_working_cache(config))
+        settings = prompt_settings()
         await run(settings, config=config)
 
         print(f"\n{C.BOLD}Нажмите Enter, чтобы вернуться в меню, или q, чтобы выйти.{C.RST}")

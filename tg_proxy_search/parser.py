@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from telethon.tl.custom import Message
 
-from .cache import MSK
 from .models import Proxy
+
+
+MSK = timezone(timedelta(hours=3))
 
 _PARAM_RE = re.compile(r"([a-z]+)=([^&\s]+)")
 _SERVER_RE = re.compile(r"Server:\s*(\S+)", re.IGNORECASE)
@@ -28,7 +30,7 @@ def proxy_from_url(url: str, posted_at: str | None = None) -> Proxy | None:
 
 
 def extract_from_message(message: Message) -> list[Proxy]:
-    # message.date в UTC с таймзоной; конвертируем в МСК для согласованности с кэшем.
+    # message.date в UTC с таймзоной; конвертируем в МСК для вывода даты публикации.
     date: datetime | None = getattr(message, "date", None)
     posted_at = date.astimezone(MSK).isoformat() if date else None
 

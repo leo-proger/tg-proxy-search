@@ -24,14 +24,14 @@ class ProgressBarTests(unittest.TestCase):
 
 
 class PromptSettingsTests(unittest.TestCase):
-    def prompt(self, answers: list[str], *, has_working_cache: bool) -> tuple[main.RunSettings, str]:
+    def prompt(self, answers: list[str]) -> tuple[main.RunSettings, str]:
         output = io.StringIO()
         with patch("builtins.input", side_effect=answers), redirect_stdout(output):
-            settings = main.prompt_settings(has_working_cache=has_working_cache)
+            settings = main.prompt_settings()
         return settings, output.getvalue()
 
     def test_public_source_rejects_check_all_and_offers_only_find_or_update(self) -> None:
-        settings, output = self.prompt(["2", "2"], has_working_cache=True)
+        settings, output = self.prompt(["2", "2"])
 
         self.assertEqual(settings.source, main.SOURCE_PUBLIC_LIST)
         self.assertEqual(settings.mode, main.MODE_UPDATE_PUBLIC_LIST)
@@ -40,21 +40,21 @@ class PromptSettingsTests(unittest.TestCase):
         self.assertNotIn("Перепроверить", output)
 
     def test_public_source_can_limit_number_of_successful_proxies(self) -> None:
-        settings, _output = self.prompt(["2", "1", "5"], has_working_cache=False)
+        settings, _output = self.prompt(["2", "1", "5"])
 
         self.assertEqual(settings.source, main.SOURCE_PUBLIC_LIST)
         self.assertEqual(settings.mode, main.MODE_FIND_TARGET)
         self.assertEqual(settings.target_working, 5)
 
     def test_public_source_can_select_local_list_update(self) -> None:
-        settings, output = self.prompt(["2", "2"], has_working_cache=False)
+        settings, output = self.prompt(["2", "2"])
 
         self.assertEqual(settings.source, main.SOURCE_PUBLIC_LIST)
         self.assertEqual(settings.mode, main.MODE_UPDATE_PUBLIC_LIST)
         self.assertIn("Обновить локальный proxies.txt", output)
 
     def test_public_source_describes_the_local_list(self) -> None:
-        _settings, output = self.prompt(["2", "1", "1"], has_working_cache=False)
+        _settings, output = self.prompt(["2", "1", "1"])
 
         self.assertIn("Использовать публичный proxies.txt", output)
         self.assertNotIn("Скачать из публичного proxies.txt", output)
@@ -66,22 +66,6 @@ class PromptSettingsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             missing = Path(directory) / "proxies.txt"
             self.assertEqual(formatter(missing), "файл отсутствует")
-
-    def test_telegram_source_hides_cache_mode_without_working_cache(self) -> None:
-        settings, output = self.prompt(["1", "2", "24"], has_working_cache=False)
-
-        self.assertEqual(settings.source, main.SOURCE_TELEGRAM)
-        self.assertEqual(settings.mode, main.MODE_CHECK_ALL)
-        self.assertEqual(settings.since_hours, 24)
-        self.assertNotIn("Перепроверить", output)
-
-    def test_telegram_source_shows_cache_mode_when_working_cache_exists(self) -> None:
-        settings, output = self.prompt(["1", "3"], has_working_cache=True)
-
-        self.assertEqual(settings.source, main.SOURCE_TELEGRAM)
-        self.assertEqual(settings.mode, main.MODE_RECHECK_CACHE)
-        self.assertIn("Перепроверить", output)
-
 
 class RunSourceTests(unittest.IsolatedAsyncioTestCase):
     async def test_public_source_rejects_check_all_mode_even_when_constructed_directly(self) -> None:
@@ -242,7 +226,6 @@ class InteractiveLoopTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("main.prompt_settings", side_effect=[settings, settings]),
-            patch("main.api.has_working_cache", return_value=False),
             patch("main.run", new=complete_run),
             patch("builtins.input", side_effect=["", "q"]),
             redirect_stdout(output := io.StringIO()),

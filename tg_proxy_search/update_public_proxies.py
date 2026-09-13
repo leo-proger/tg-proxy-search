@@ -25,7 +25,7 @@ async def update_public_proxies(
     with tempfile.TemporaryDirectory(prefix="tg-proxy-search-") as directory:
         config = replace(
             Config.from_env(),
-            cache_file=str(Path(directory) / "proxies.json"),
+            candidates_file=str(Path(directory) / "proxies.json"),
             max_scan_messages=limit,
         )
         result = await fetch(config, session_file=session_file)
