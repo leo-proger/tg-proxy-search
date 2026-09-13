@@ -81,6 +81,24 @@ def _format_last_updated(path: Path) -> str:
     return modified_at.strftime("%d.%m.%Y %H:%M")
 
 
+def _progress_bar(current: int, total: int, *, width: int = 24) -> str:
+    safe_total = max(total, 1)
+    displayed_current = min(max(current, 0), max(total, 0))
+    ratio = displayed_current / safe_total
+    filled = int(ratio * width)
+    percent = int(ratio * 100)
+    return f"[{'█' * filled}{'░' * (width - filled)}] {percent:3d}% {displayed_current}/{total}"
+
+
+def _show_progress(label: str, current: int, total: int, *, suffix: str = "") -> None:
+    details = f"  {suffix}" if suffix else ""
+    print(
+        f"\r  {C.INFO}{label:<13}{C.RST} {C.OK}{_progress_bar(current, total)}{C.RST}{details}\033[K",
+        end="",
+        flush=True,
+    )
+
+
 def prompt_settings(*, has_working_cache: bool = False) -> RunSettings:
     print(f"{C.BOLD}Откуда взять прокси?{C.RST}")
     print(f"  {C.BOLD}1{C.RST}  Спарсить свежие из Telegram-канала {C.DIM}(нужен VPN){C.RST}")
@@ -170,11 +188,18 @@ async def _run_fetch(config: api.Config, settings: RunSettings) -> api.FetchResu
         print(f"{C.DIM}  Парсится @{config.channel}{C.RST}\n")
 
     def on_progress(event: api.FetchProgress) -> None:
-        print(f"\r  Гуглится: {event.scanned} постов  |  найдено: {event.found}", end="", flush=True)
+        _show_progress(
+            "Сканирование",
+            event.scanned,
+            config.max_scan_messages,
+            suffix=f"найдено: {event.found}",
+        )
 
+    _show_progress("Сканирование", 0, config.max_scan_messages, suffix="найдено: 0")
     result = await api.fetch(config, since_hours=settings.since_hours, on_progress=on_progress)
 
-    print(f"\r  {C.OK}Кандидатов найдено: {result.found}{C.RST}  {C.DIM}(просмотрено {result.scanned} постов){C.RST}")
+    print()
+    print(f"  {C.OK}Кандидатов найдено: {result.found}{C.RST}  {C.DIM}(просмотрено {result.scanned} постов){C.RST}")
     if result.limit_reached:
         print(f"{C.WARN}  ⚠ Лимит сканирования достигнут ({config.max_scan_messages} постов) — "
               f"увеличьте MAX_SCAN_MESSAGES в .env.{C.RST}")
@@ -188,18 +213,23 @@ async def _run_fetch(config: api.Config, settings: RunSettings) -> api.FetchResu
 async def _run_public_fetch(config: api.Config) -> list[api.Proxy]:
     print(f"{C.BOLD}── Шаг 1: скачивается публичный список{C.RST}")
     print(f"{C.DIM}  Источник: {api.PUBLIC_PROXY_LIST_URL}{C.RST}\n")
+    _show_progress("Скачивание", 0, 1)
     candidates = await api.download_public_proxies(timeout=config.tcp_timeout)
-    print(f"  {C.OK}Кандидатов загружено: {len(candidates)}{C.RST}\n")
+    _show_progress("Скачивание", 1, 1, suffix=f"загружено: {len(candidates)}")
+    print("\n")
     return candidates
 
 
 async def _run_public_update(config: api.Config) -> None:
     print(f"{C.BOLD}── Обновляется локальный proxies.txt{C.RST}")
     print(f"{C.DIM}  Источник: {api.PUBLIC_PROXY_LIST_URL}{C.RST}\n")
+    _show_progress("Обновление", 0, 1)
     saved = await api.update_local_public_proxies(
         PUBLIC_PROXY_LIST_PATH,
         timeout=config.tcp_timeout,
     )
+    _show_progress("Обновление", 1, 1, suffix=f"сохранено: {saved}")
+    print()
     print(f"  {C.OK}Готово: сохранено {saved} прокси в {PUBLIC_PROXY_LIST_PATH}{C.RST}")
     print(f"  {C.DIM}Последнее обновление: {_format_last_updated(PUBLIC_PROXY_LIST_PATH)}{C.RST}\n")
 
@@ -232,63 +262,41 @@ async def _do_check(
     target_working: int | None = None,
     candidates: list[api.Proxy] | None = None,
 ) -> api.CheckResult:
-    consecutive_fails = 0
-    has_collapsed_line = False
-
     def on_event(event: api.ProxyChecked) -> None:
-        nonlocal consecutive_fails, has_collapsed_line
-        cached_tag = f" {C.DIM}(кэш){C.RST}" if event.from_cache else ""
-        if event.ok:
-            if has_collapsed_line:
-                print()
-                has_collapsed_line = False
-            consecutive_fails = 0
-            print(f"{C.OK}  ✓{C.RST} {event.proxy.server}:{event.proxy.port}{cached_tag}")
+        cached = "  кэш" if event.from_cache else ""
+        if target_working is None:
+            current, total = event.checked, event.total
+            suffix = f"рабочих: {event.working}{cached}"
         else:
-            consecutive_fails += 1
-            if consecutive_fails <= 2:
-                print(f"{C.FAIL}  ✗{C.RST} {event.proxy.server}:{event.proxy.port}{cached_tag}")
-            else:
-                print(
-                    f"\r{C.DIM}  ...{event.checked}/{event.total} проверено, нерабочие{C.RST}   ",
-                    end="", flush=True,
-                )
-                has_collapsed_line = True
+            current, total = event.working, target_working
+            suffix = f"проверено: {event.checked}/{event.total}{cached}"
+        _show_progress(
+            "Проверка",
+            current,
+            total,
+            suffix=suffix,
+        )
 
     result = await api.check(config, candidates=candidates, target_working=target_working, on_event=on_event)
 
-    if has_collapsed_line:
+    if result.checked:
         print()
     print(f"\n  {C.OK}Рабочих: {len(result.working)}{C.RST}  {C.DIM}(проверено {result.checked}/{result.total}){C.RST}\n")
     return result
 
 
 async def _do_recheck(config: api.Config) -> api.CheckResult:
-    consecutive_fails = 0
-    has_collapsed_line = False
-
     def on_event(event: api.ProxyChecked) -> None:
-        nonlocal consecutive_fails, has_collapsed_line
-        if event.ok:
-            if has_collapsed_line:
-                print()
-                has_collapsed_line = False
-            consecutive_fails = 0
-            print(f"{C.OK}  ✓{C.RST} {event.proxy.server}:{event.proxy.port}")
-        else:
-            consecutive_fails += 1
-            if consecutive_fails <= 2:
-                print(f"{C.FAIL}  ✗{C.RST} {event.proxy.server}:{event.proxy.port}")
-            else:
-                print(
-                    f"\r{C.DIM}  ...{event.checked}/{event.total} проверено, нерабочие{C.RST}   ",
-                    end="", flush=True,
-                )
-                has_collapsed_line = True
+        _show_progress(
+            "Перепроверка",
+            event.checked,
+            event.total,
+            suffix=f"рабочих: {event.working}",
+        )
 
     result = await api.recheck(config, on_event=on_event)
 
-    if has_collapsed_line:
+    if result.checked:
         print()
     if result.total == 0:
         print(f"{C.WARN}  Кэш пустой — сначала запустите режим 1 или 2.{C.RST}\n")

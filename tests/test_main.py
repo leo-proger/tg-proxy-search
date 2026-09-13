@@ -12,6 +12,17 @@ import main
 import tg_proxy_search as api
 
 
+class ProgressBarTests(unittest.TestCase):
+    def test_bar_shows_filled_share_percentage_and_count(self) -> None:
+        renderer = getattr(main, "_progress_bar", None)
+        self.assertIsNotNone(renderer)
+
+        self.assertEqual(renderer(3, 10, width=10), "[███░░░░░░░]  30% 3/10")
+
+    def test_bar_caps_completed_count_at_total(self) -> None:
+        self.assertEqual(main._progress_bar(12, 10, width=10), "[██████████] 100% 10/10")
+
+
 class PromptSettingsTests(unittest.TestCase):
     def prompt(self, answers: list[str], *, has_working_cache: bool) -> tuple[main.RunSettings, str]:
         output = io.StringIO()
@@ -173,6 +184,114 @@ class RunSourceTests(unittest.IsolatedAsyncioTestCase):
             await main.run(settings, config=api.Config(api_id=1, api_hash="hash"))
 
         self.assertIn("Найдено только 1 из 3", output.getvalue())
+
+
+class CheckProgressTests(unittest.IsolatedAsyncioTestCase):
+    async def test_check_redraws_progress_until_all_candidates_are_done(self) -> None:
+        failed = api.Proxy("failed.example", 443, "failed")
+        working = api.Proxy("working.example", 443, "working")
+
+        async def check_with_events(
+            _config: api.Config,
+            *,
+            candidates=None,
+            target_working=None,
+            on_event=None,
+        ) -> api.CheckResult:
+            on_event(api.ProxyChecked(failed, False, checked=1, working=0, total=2))
+            on_event(api.ProxyChecked(working, True, checked=2, working=1, total=2))
+            return api.CheckResult(working=[working], total=2, checked=2)
+
+        output = io.StringIO()
+        with patch("main.api.check", new=check_with_events), redirect_stdout(output):
+            await main._do_check(
+                api.Config(api_id=1, api_hash="hash"),
+                candidates=[failed, working],
+            )
+
+        rendered = output.getvalue()
+        self.assertIn("50% 1/2", rendered)
+        self.assertIn("100% 2/2", rendered)
+
+    async def test_targeted_check_fills_bar_when_requested_working_count_is_found(self) -> None:
+        working = api.Proxy("working.example", 443, "working")
+
+        async def check_with_target(
+            _config: api.Config,
+            *,
+            candidates=None,
+            target_working=None,
+            on_event=None,
+        ) -> api.CheckResult:
+            on_event(api.ProxyChecked(working, True, checked=7, working=1, total=50))
+            return api.CheckResult(working=[working], target=1, total=50, checked=7)
+
+        output = io.StringIO()
+        with patch("main.api.check", new=check_with_target), redirect_stdout(output):
+            await main._do_check(
+                api.Config(api_id=1, api_hash="hash"),
+                candidates=[working],
+                target_working=1,
+            )
+
+        rendered = output.getvalue()
+        self.assertIn("100% 1/1", rendered)
+        self.assertIn("проверено: 7/50", rendered)
+
+
+class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
+    async def test_public_download_moves_from_empty_to_full_bar(self) -> None:
+        proxy = api.Proxy("public.example", 443, "secret")
+
+        with (
+            patch("main.api.download_public_proxies", return_value=[proxy]),
+            redirect_stdout(output := io.StringIO()),
+        ):
+            await main._run_public_fetch(api.Config(api_id=1, api_hash="hash"))
+
+        rendered = output.getvalue()
+        self.assertIn("0% 0/1", rendered)
+        self.assertIn("100% 1/1", rendered)
+
+    async def test_local_list_update_moves_from_empty_to_full_bar(self) -> None:
+        async def update_local(_path: Path, *, timeout: float) -> int:
+            return 25
+
+        with (
+            patch("main.api.update_local_public_proxies", new=update_local),
+            redirect_stdout(output := io.StringIO()),
+        ):
+            await main._run_public_update(api.Config(api_id=1, api_hash="hash"))
+
+        rendered = output.getvalue()
+        self.assertIn("0% 0/1", rendered)
+        self.assertIn("100% 1/1", rendered)
+        self.assertIn("сохранено: 25", rendered)
+
+    async def test_telegram_fetch_shows_scan_limit_progress(self) -> None:
+        proxy = api.Proxy("telegram.example", 443, "secret")
+
+        async def fetch_with_progress(_config, *, since_hours, on_progress):
+            on_progress(api.FetchProgress(found=1, scanned=250))
+            return api.FetchResult(candidates=[proxy], scanned=250)
+
+        settings = main.RunSettings(
+            source=main.SOURCE_TELEGRAM,
+            mode=main.MODE_FIND_TARGET,
+            target_working=1,
+            since_hours=None,
+        )
+        with (
+            patch("builtins.input", return_value=""),
+            patch("main.api.fetch", new=fetch_with_progress),
+            redirect_stdout(output := io.StringIO()),
+        ):
+            await main._run_fetch(api.Config(api_id=1, api_hash="hash"), settings)
+
+        rendered = output.getvalue()
+        self.assertIn("Сканирование", rendered)
+        self.assertIn("25% 250/1000", rendered)
+        self.assertIn("найдено: 1", rendered)
 
 
 if __name__ == "__main__":
