@@ -1,6 +1,16 @@
-tg://proxy?server=tazenafas.dingi3.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
+tg://proxy?server=redflag.yazaebalsyadelatproxy.vip&port=443&secret=eeb8e5365580b9ad3c2ee355dfcbc245e5726564666c61672e79617a616562616c73796164656c617470726f78792e766970
+tg://proxy?server=rale49.mosswren.vip&port=443&secret=ee73e7dbb3f2f846f567e24bee244c0f1072616c6534392e6d6f73737772656e2e766970
+tg://proxy?server=yarypple.co.uk.&port=4455&secret=dd104462821249bd7ac519130220c25d09
+tg://proxy?server=rootssh2.co.uk.&port=4455&secret=dd104462821249bd7ac519130220c25d09
+tg://proxy?server=severjadid.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
+tg://proxy?server=redflag.yazaebalsyadelatproxy.top&port=443&secret=ee24c8636b7e946779a023ee708370719b726564666c61672e79617a616562616c73796164656c617470726f78792e746f70
+tg://proxy?server=deraka22.amberreed.top&port=443&secret=ee920a4026fcc79354d87c30db9280e578646572616b6132322e616d626572726565642e746f70
+tg://proxy?server=mamadali.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
+tg://proxy?server=din5gli2.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
+tg://proxy?server=dingi3.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
 tg://proxy?server=jadide.mamadali.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
 tg://proxy?server=vasalshim.mamadgoli.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
+tg://proxy?server=tazenafas.dingi3.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
 tg://proxy?server=akenai.tg&port=853&secret=ee54ce330e4690cc297d2b031ff3f288b06d742e616b656e61692e636c69636b
 tg://proxy?server=ir-ir.grasic.info&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
 tg://proxy?server=ir-ir.my-pv.info&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
@@ -48,7 +58,6 @@ tg://proxy?server=redflag.yazaebalsyadelatproxy.top&port=443&secret=ee5968d9f860
 tg://proxy?server=makasu60.amberreed.top&port=443&secret=eec95ef2f2193afa5ec0abe73fb7e3ec3c6d616b61737536302e616d626572726565642e746f70
 tg://proxy?server=New.nchnch.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
 tg://proxy?server=Lashboy.muzanesghy.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
-tg://proxy?server=severjadid.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
 tg://proxy?server=redflag.yazaebalsyadelatproxy.vip&port=443&secret=ee899032aa75159cc1d735f15e7a0e3a6e726564666c61672e79617a616562616c73796164656c617470726f78792e766970
 tg://proxy?server=91.107.140.144&port=443&secret=3XnnAQIAAQAH8AMDhuJMOt0
 tg://proxy?server=redflag.yazaebalsyadelatproxy.top&port=443&secret=eecd7b5204a28b47f7cc34c67357433608726564666c61672e79617a616562616c73796164656c617470726f78792e746f70
@@ -98,9 +107,6 @@ tg://proxy?server=fast.mtp.mom&port=443&secret=ee51c8b871ae7a470814adb0c5da1f11d
 tg://proxy?server=max.mishutkin.click&port=443&secret=ee94989d74ad055391384d92c3c773c8d264726976652e676f6f676c652e636f6d
 tg://proxy?server=orbit.mtp.lat&port=443&secret=ee09bcb48876795874b1ac8c24940ebff76c69746536342e73697465
 tg://proxy?server=a03.lovely.lat&port=443&secret=ee68d6a83140657a1c7bf8e64d98ce9432786170692e6f7a6f6e2e7275
-tg://proxy?server=yarypple.co.uk.&port=4455&secret=dd104462821249bd7ac519130220c25d09
-tg://proxy?server=dingi3.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
-tg://proxy?server=din5gli2.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
 tg://proxy?server=fast.proxynet.tech&port=443&secret=ee08787a2b7fd3220d9d35679aab082cab666173742e70726f78796e65742e74656368
 tg://proxy?server=top.proxynet.tech&port=443&secret=ee59d1ef95ab03cfeaebb18b0a529ad5e6746f702e70726f78796e65742e74656368
 tg://proxy?server=ir-ir.flipme.info&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
@@ -215,7 +221,6 @@ tg://proxy?server=p.lite64.xyz&port=443&secret=eefd358bdf7ec05283f00a20d63974998
 tg://proxy?server=p.lite64.click&port=443&secret=ee359f8b7f0b48e4c44ede066b1953f1a36c69746536342e73697465
 tg://proxy?server=p.lite64.top&port=443&secret=eef50c455f4d9d60ff50889cc08a9044596c69746536342e73697465
 tg://proxy?server=mamadgoli.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
-tg://proxy?server=mamadali.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
 tg://proxy?server=night.vtoroe-dyhanie.space&port=443&secret=ee712aff3bb7aa86eefc4eda95d8aef21f6e696768742e76746f726f652d647968616e69652e7370616365
 tg://proxy?server=87.58.149.247&port=443&secret=eeaaa7b0dbdfce2f2a3e7bc5563c900e297777772e636c6f7564666c6172652e636f6d
 tg://proxy?server=212.147.241.136&port=443&secret=eeed0542373d8297f689458ff7dd1a4ba87777772e636c6f7564666c6172652e636f6d
@@ -455,7 +460,6 @@ tg://proxy?server=sftp.khelijefars.co.uk&port=25565&secret=ee1603010200010001fc0
 tg://proxy?server=http.khelijefars.co.uk&port=22&secret=EERighJJvXrFGRMCIMJdCQ
 tg://proxy?server=anchor.lovely.lat&port=443&secret=eeaadd88aa9facd454936d0c42dc128e77616e63686f722e6c6f76656c792e6c6174
 tg://proxy?server=portal.mtproxy.cc&port=443&secret=eeef7017f26c9ecb71ed8d760999294318786170692e6f7a6f6e2e7275
-tg://proxy?server=rootssh2.co.uk.&port=4455&secret=dd104462821249bd7ac519130220c25d09
 tg://proxy?server=bfesedv.uk.&port=4455&secret=dd104462821249bd7ac519130220c25d09
 tg://proxy?server=Strait-of-Hormuz.ir.jursdheks.info.&port=88&secret=ee0000f00f0f775555fffffff5006e2e697374617469632e666172616b61762e636f6d
 tg://proxy?server=zone.lovely.lat&port=443&secret=eeaadd88aa9facd454936d0c42dc128e777a6f6e652e6c6f76656c792e6c6174
