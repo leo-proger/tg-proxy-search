@@ -1,3 +1,6 @@
+tg://proxy?server=fast.mishutkin.click&port=443&secret=eef767ebee5708dadc985d58ad6e04560664726976652e676f6f676c652e636f6d
+tg://proxy?server=haji.estabonita.co.uk&port=8443&secret=EERighJJvXrFGRMCIMJdCQ
+tg://proxy?server=dashi.estabonita.co.uk&port=8443&secret=EERighJJvXrFGRMCIMJdCQ
 tg://proxy?server=ir.strawberrybarn.co.uk&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
 tg://proxy?server=ir-ir.connectina.co.uk&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
 tg://proxy?server=ir.shentaichiacademy.co.uk&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
@@ -6,19 +9,17 @@ tg://proxy?server=164.37.224.216&port=443&secret=ddc62c6006d0a383e80aab9f1b8a233
 tg://proxy?server=jhndoes.co.uk.&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=exiscos.co.uk.&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=termsnal.co.uk.&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
-tg://proxy?server=turbo-speed.ir.bcsadwtgd.info.&port=7443&secret=eeNEgYdJvXrFGRMCIMJdCQ
-tg://proxy?server=sarma.ir.bcsadwtgd.info.&port=7443&secret=eeNEgYdJvXrFGRMCIMJdCQ
-tg://proxy?server=best-speed.ir.bcsadwtgd.info.&port=7443&secret=eeNEgYdJvXrFGRMCIMJdCQ
+tg://proxy?server=Strait-of-Hormuz.ir.bcsadwtgd.info.&port=7443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=support.infinityhalo.co.uk.&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=3etare.co.uk.&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=nocloudnew.co.uk.&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
-tg://proxy?server=Rudmoain.co.uk.&port=443&secret=eef0eeb0bd9adc4fd4a93994ee3b2a216b63646e2e79656b74616e65742e636f6d
 tg://proxy?server=Suodbo.co.uk.&port=443&secret=eef0eeb0bd9adc4fd4a93994ee3b2a216b63646e2e79656b74616e65742e636f6d
 tg://proxy?server=puot.mozitop.co.uk&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
+tg://proxy?server=Rudmoain.co.uk.&port=443&secret=eef0eeb0bd9adc4fd4a93994ee3b2a216b63646e2e79656b74616e65742e636f6d
 tg://proxy?server=ultra.mishutkin.click&port=443&secret=eed02e349163d9ea4376a2ae6a94fc550b64726976652e676f6f676c652e636f6d
+tg://proxy?server=one.horizon555.co.uk&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=91.98.97.225&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=ccc.horizon555.co.uk&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
-tg://proxy?server=one.horizon555.co.uk&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=135.181.74.183&port=443&secret=3XnnAQIAAQAH8AMDhuJMOt0
 tg://proxy?server=135.181.74.189&port=443&secret=3XnnAQIAAQAH8AMDhuJMOt0
 tg://proxy?server=195.62.32.55&port=443&secret=3XnnAQIAAQAH8AMDhuJMOt0
@@ -74,7 +75,6 @@ tg://proxy?server=darya.saheledarya.co.uk.&port=8443&secret=eeNEgYdJvXrFGRMCIMJd
 tg://proxy?server=aseman.lunavane.co.uk.&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=visu82.tidalbirch.sbs&port=443&secret=eeb8e5365580b9ad3c2ee355dfcbc245e57669737538322e746964616c62697263682e736273
 tg://proxy?server=losuny65.quietfjord.click&port=443&secret=ee214011ba04108a7b1836df3a5e918b3b6c6f73756e7936352e7175696574666a6f72642e636c69636b
-tg://proxy?server=dashi.estabonita.co.uk&port=8443&secret=EERighJJvXrFGRMCIMJdCQ
 tg://proxy?server=mio.mozitop.co.uk&port=8443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=ir.groundfloorsolutions.co.uk&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
 tg://proxy?server=ir-ir.radio-zvez.info&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
@@ -82,7 +82,6 @@ tg://proxy?server=xxmatrixx.top&port=853&secret=eee4508d288bf81791177a2f5e73ac06
 tg://proxy?server=storagexx.space&port=443&secret=ee24b61556a3ec49bc0c7a5a7e8525702873746f7261676578782e7370616365
 tg://proxy?server=mahi.poolaki.co.uk&port=8443&secret=EERighJJvXrFGRMCIMJdCQ
 tg://proxy?server=top.proxynet.tech&port=443&secret=ee59d1ef95ab03cfeaebb18b0a529ad5e6746f702e70726f78796e65742e74656368
-tg://proxy?server=Strait-of-Hormuz.ir.bcsadwtgd.info.&port=7443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=zero.ir.bcsadwtgd.info.&port=7443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=Kingdom-persia.ir.hey-gardash.info.&port=1080&secret=79e344818749bd7ac519130220c25d09
 tg://proxy?server=levika43.fernlark.xyz&port=443&secret=eea02849a55daccdc7f7a05691b7ef7cd16c6576696b6134332e6665726e6c61726b2e78797a
@@ -109,7 +108,6 @@ tg://proxy?server=rootssh2.co.uk.&port=4455&secret=dd104462821249bd7ac519130220c
 tg://proxy?server=yarypple.co.uk.&port=4455&secret=dd104462821249bd7ac519130220c25d09
 tg://proxy?server=ir.dinocol.co.uk&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
 tg://proxy?server=ir.forzajuve.co.uk&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
-tg://proxy?server=haji.estabonita.co.uk&port=8443&secret=EERighJJvXrFGRMCIMJdCQ
 tg://proxy?server=91.107.166.216&port=443&secret=3XnnAQIAAQAH8AMDhuJMOt0
 tg://proxy?server=135.181.74.178&port=443&secret=3XnnAQIAAQAH8AMDhuJMOt0
 tg://proxy?server=porsorate.co.uk&port=4455&secret=dd104462821249bd7ac519130220c25d09
@@ -251,7 +249,6 @@ tg://proxy?server=ir-ir.my-pv.info&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
 tg://proxy?server=ir-ir.macauley.info&port=8443&secret=EERighJJvXrFGRMCIMjdCQ
 tg://proxy?server=cdnwave.org&port=443&secret=ee5eedcb160ad8ac83ff7a1516474692d8706574726f766963682e7275
 tg://proxy?server=cdnshoal.com&port=443&secret=ee0c7de12ecae4816d58398feb42a3754f706574726f766963682e7275
-tg://proxy?server=fast.mishutkin.click&port=443&secret=eef767ebee5708dadc985d58ad6e04560664726976652e676f6f676c652e636f6d
 tg://proxy?server=maka61.tidelark.cc&port=443&secret=ee899032aa75159cc1d735f15e7a0e3a6e6d616b6136312e746964656c61726b2e6363
 tg://proxy?server=akenai.tg&port=853&secret=ee54ce330e4690cc297d2b031ff3f288b06d742e616b656e61692e636c69636b
 tg://proxy?server=tg.getsurfvpn.com&port=443&secret=eedf44a4347c1eb8938c7e63340bd1ca4972656c61792e7375726676706e2e617070
@@ -411,6 +408,9 @@ tg://proxy?server=85.133.236.147&port=2096&secret=ameuTC0XO0FodFQ1yzE6OQQ1yzE60Q
 tg://proxy?server=miosen.cyou&port=2096&secret=dd6a67ae4c2d173b4168745435cb313a39
 tg://proxy?server=77.42.56.66&port=443&secret=3XnnAQIAAQAH8AMDhuJMOt0
 tg://proxy?server=77.42.56.67&port=443&secret=3XnnAQIAAQAH8AMDhuJMOt0
+tg://proxy?server=turbo-speed.ir.bcsadwtgd.info.&port=7443&secret=eeNEgYdJvXrFGRMCIMJdCQ
+tg://proxy?server=sarma.ir.bcsadwtgd.info.&port=7443&secret=eeNEgYdJvXrFGRMCIMJdCQ
+tg://proxy?server=best-speed.ir.bcsadwtgd.info.&port=7443&secret=eeNEgYdJvXrFGRMCIMJdCQ
 tg://proxy?server=s01.neo-trading.org&port=443&secret=ee7391242569590e01416101927d38b565646e732d73686f702e7275
 tg://proxy?server=s02.neo-trading.org&port=443&secret=ee6ec9f7e082baf2397b450727ce78447e6f7a6f6e2e7275
 tg://proxy?server=s03.neo-trading.org&port=443&secret=eeaf794bcc20f70b1436b6b92b01b207e26d61676e69742e7275
